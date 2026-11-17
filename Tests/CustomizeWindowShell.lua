@@ -60,6 +60,7 @@ local function EditMode(window)
     local bg=frame._fpModernPortraitBackground
     assert(bg:IsShown() and bg:GetTexture()==nil)
     local c=bg.lastSetColorTexture;assert(c[1]==0 and c[2]==0 and c[3]==0 and c[4]==.8)
+    assert(bg:GetAlpha()==1)
     local layer,sub=bg:GetDrawLayer();assert(layer=="BACKGROUND" and sub==-5)
     assert(bg.points.TOPLEFT.x==7 and bg.points.TOPLEFT.y==-7)
     assert(bg.points.BOTTOMRIGHT.x==-7 and bg.points.BOTTOMRIGHT.y==7)

@@ -254,5 +254,237 @@ Test("Power mode/anchor menus preserve Disabled and reject retained native actio
     local db=s.ns.db;before=s.h.Copy(db);old();s.h.Equal(db,before)
     assert(Native("Size Mode").enabled)
 end)
+Test("Workspace value fonts preserve faces, colors, controls and pooling; Legacy stays unchanged",function()
+    local product=Read("GUI/Editor/Inspector/InspectorController.lua")
+    local first=assert(product:find("    local function AddPropertyRow(",1,true))
+    local last=assert(product:find("    local function CreateTwoControlTableRow(",first,true))
+    local context={AceGUI=s.h.ui.ace,FormWidgets=s.ns.GUI.Helpers.FormWidgets,PROPERTY_LABEL_WIDTH=108,
+        INSPECTOR_ROW_STRIDES={COMPACT=32},INSPECTOR_FLOW_GAP=3,activeInspectorDiagnosticHosts={},
+        workspaceIsCurrent=function()return true end}
+    local build=assert(load(product:sub(first,last-1).."\nreturn AddPropertyRow","@Inspector/WorkspaceFonts","t",
+        setmetatable(context,{__index=_G})))()
+    local host=s.h.ui.ace:Create("SimpleGroup")
+    local saved,controls={},{}
+    local originalCheckboxBounds
+    local originalColorBounds
+    local originalColorTexture
+    local function Remember(slot,size)
+        saved[#saved+1]={slot=slot,font={slot:GetFont()},color={slot:GetTextColor()},size=size or 13}
+    end
+    local row=build(host,"Long localized property label",function(value)
+        local check=s.ns.GUI.Editor.SidebarShared.AddCheckBox(value,"On",true,function()end)
+        originalCheckboxBounds={check.checkbg:GetWidth(),check.checkbg:GetHeight(),check.frame:GetHeight()}
+        Remember(check.text);controls.check=check
+        local color=s.ns.GUI.Editor.SidebarShared.AddColorPicker(value,"",{.2,.3,.4,.5},true,function()end)
+        originalColorTexture=color.colorSwatch:GetTexture()
+        originalColorBounds={}
+        for _,region in ipairs({color.colorSwatch,color.colorSwatch.background,color.colorSwatch.checkers})do
+            originalColorBounds[#originalColorBounds+1]={region,region:GetWidth(),region:GetHeight()}
+        end
+        controls.color=color
+        local input=s.h.ui.ace:Create("EditBox");input:SetText("123")
+        -- One native InputBox texture boundary; the real template supplies its border regions.
+        local edge=input.editbox:CreateTexture(nil,"BACKGROUND");edge.kind="Texture"
+        s.ns.GUI.Helpers.FormWidgets.StyleEditBox(input,"editor_inset","value")
+        controls.input=input;controls.inputEdge=edge;controls.inputHeight=input.editbox:GetHeight()
+        controls.inputStyle=input.editbox._fpFieldStyle
+        controls.inputFocus=input.editbox:GetScript("OnEditFocusGained")
+        Remember(input.editbox,14);value:AddChild(input)
+        local slider=s.h.ui.ace:Create("FPCompactSlider");slider:SetSliderValues(-10,100,1)
+        slider:SetValue(42);slider:SetInspectorPresentation();value:AddChild(slider);slider:SetNativeInspectorPresentation()
+        for _,slot in ipairs({slider.editbox,slider.lowtext,slider.hightext})do Remember(slot)end
+        controls.slider=slider
+        local dropdown=s.ns.GUI.Editor.SidebarShared.AddDropdown(value,"",{a="A",b="B"},"a",function()end)
+        assert(s.ns.GUI.Helpers.FormWidgets.BindNativeDropdown(dropdown,{}))
+        local native=dropdown:GetUserData("nativePropertyDropdown")
+        -- Model the FontString supplied by the real WowStyle1DropdownTemplate.
+        native.Text=native.Text or native:CreateFontString(nil,"OVERLAY","GameFontHighlight")
+        Remember(dropdown.text);Remember(native.Text);controls.dropdown=dropdown
+    end,{rowType="COMPACT"})
+    assert(select(2,row.children[1].label:GetFont())==14)
+    local color=controls.color
+    assert(color.colorSwatch:GetWidth()==24 and color.colorSwatch:GetHeight()==24)
+    assert(color.colorSwatch.background:GetWidth()==21 and color.colorSwatch.background:GetHeight()==21)
+    assert(color.colorSwatch.checkers:GetWidth()==19 and color.colorSwatch.checkers:GetHeight()==19)
+    assert(color.frame:GetHeight()>=color.colorSwatch:GetHeight())
+    assert(color.r==.2 and color.g==.3 and color.b==.4 and color.a==.5 and color.HasAlpha)
+    assert(color.colorSwatch:GetTexture()=="Interface\\Buttons\\WHITE8X8")
+    local border=assert(color.frame._fpColorSwatchBorder)
+    local edges=0
+    for side,edge in pairs(border)do
+        edges=edges+1;assert(edge:IsShown())
+        local layer,sublevel=edge:GetDrawLayer();assert(layer=="OVERLAY" and sublevel==1)
+        if side=="TOP" or side=="BOTTOM"then
+            assert(edge:GetHeight()==1 and edge.points[side.."LEFT"].relative==color.colorSwatch)
+        else
+            assert(edge:GetWidth()==1 and edge.points["TOP"..side].y==-1 and edge.points["BOTTOM"..side].y==1)
+        end
+    end
+    assert(edges==4)
+    for _,rgba in ipairs({{1,1,1,1},{0,0,0,1},{1,0,0,1},{1,1,0,1},{0,1,0,1},{.3,.5,.7,.5}})do
+        color:SetColor(table.unpack(rgba))
+        s.h.Equal(color.colorSwatch.lastSetVertexColor,rgba)
+        for _,edge in pairs(border)do
+            s.h.Equal(edge.lastSetColorTexture,s.ns.GUI.Helpers.FormWidgets.ResolveFieldStyle("neutral").border)
+        end
+    end
+    local click=color.frame:GetScript("OnClick")
+    color:SetDisabled(true);color:SetDisabled(false)
+    color:SetColor(.7,.6,.5,.4)
+    assert(color.frame:GetScript("OnClick")==click and color.a==.4)
+    assert(color.colorSwatch:GetWidth()==24 and color.colorSwatch.checkers:GetWidth()==19)
+    for _,entry in ipairs(saved)do
+        local font,size,flags=entry.slot:GetFont()
+        assert(font==entry.font[1] and size==entry.size and flags==entry.font[3])
+        s.h.Equal({entry.slot:GetTextColor()},entry.color)
+    end
+    assert(controls.check.checkbg:GetWidth()==32 and controls.check.checkbg:GetHeight()==32)
+    assert(controls.check.frame:GetHeight()>=32 and row.frame:GetHeight()>=32)
+    assert(row.children[2].frame:GetHeight()>=32,"value host clips the native-sized checkbox")
+    assert(controls.check.check.lastSetAllPoints[1]==controls.check.checkbg)
+    assert(controls.check.highlight.lastSetAllPoints[1]==controls.check.checkbg)
+    local check=controls.check
+    local down,up=check.frame:GetScript("OnMouseDown"),check.frame:GetScript("OnMouseUp")
+    check:SetValue(false);assert(not check.check:IsShown())
+    down(check.frame);up(check.frame);assert(check:GetValue() and check.check:IsShown())
+    assert(check.text.points.LEFT.relative==check.checkbg and check.text.points.LEFT.x==0)
+    check:SetDisabled(true);down(check.frame);up(check.frame);assert(check:GetValue())
+    assert(check.check.lastSetDesaturated[1]==true)
+    check:SetDisabled(false);down(check.frame);up(check.frame);assert(not check:GetValue())
+    assert(check.frame:GetScript("OnMouseDown")==down and check.frame:GetScript("OnMouseUp")==up)
+    controls.check:SetDisabled(true);controls.check:SetDisabled(false)
+    controls.check:SetLabel("Off");assert(select(2,controls.check.text:GetFont())==13)
+    controls.slider:SetDisabled(true);controls.slider:SetDisabled(false)
+    controls.slider:SetWidth(97);assert(controls.slider:GetValue()==42)
+    assert(select(2,controls.slider.editbox:GetFont())==13)
+    controls.dropdown:SetValue("b");assert(controls.dropdown:GetValue()=="b")
+    local input=controls.input;local fill=assert(input.frame._fpInspectorInputFill)
+    local neutral=s.ns.GUI.Helpers.FormWidgets.ResolveFieldStyle("neutral")
+    assert(fill:IsShown() and fill.lastSetAllPoints[1]==input.editbox)
+    s.h.Equal(fill.lastSetColorTexture,neutral.background)
+    assert(input.editbox._fpFieldStyle==neutral and input.editbox:GetHeight()>=20)
+    assert(input.editbox:GetScript("OnEditFocusGained")==controls.inputFocus,"existing focus handler was replaced")
+    input.editbox:Run("OnEditFocusGained")
+    s.h.Equal(controls.inputEdge.lastSetVertexColor,neutral.borderFocus)
+    input.editbox:Run("OnEditFocusLost")
+    s.h.Equal(controls.inputEdge.lastSetVertexColor,neutral.border)
+    for _,text in ipairs({"0","3","4","-17","Langer Text / long text"})do
+        input:SetText(text);assert(input:GetText()==text and select(2,input.editbox:GetFont())==14)
+    end
+    input:SetDisabled(true);assert(input.disabled and fill:IsShown())
+    s.h.Equal({input.editbox:GetTextColor()},{.5,.5,.5})
+    input:SetDisabled(false);assert(not input.disabled and select(2,input.editbox:GetFont())==14)
+    s.h.ui.ace:Release(host)
+    assert(not fill:IsShown() and input.editbox:GetHeight()==controls.inputHeight)
+    assert(input.editbox._fpFieldStyle==controls.inputStyle)
+    s.h.Equal({check.checkbg:GetWidth(),check.checkbg:GetHeight(),check.frame:GetHeight()},originalCheckboxBounds)
+    assert(color.colorSwatch:GetTexture()==originalColorTexture)
+    for _,edge in pairs(border)do assert(not edge:IsShown())end
+    for _,entry in ipairs(originalColorBounds)do
+        assert(entry[1]:GetWidth()==entry[2] and entry[1]:GetHeight()==entry[3])
+    end
+    for _,entry in ipairs(saved)do s.h.Equal({entry.slot:GetFont()},entry.font)end
+    context.workspaceIsCurrent=nil
+    host=s.h.ui.ace:Create("SimpleGroup")
+    local row=build(host,"Legacy",function(value)
+        local input=s.h.ui.ace:Create("EditBox");Remember(input.editbox);value:AddChild(input)
+        assert(not input.frame._fpInspectorInputFill or not input.frame._fpInspectorInputFill:IsShown())
+        local legacy=s.ns.GUI.Editor.SidebarShared.AddCheckBox(value,"Legacy",false,function()end)
+        assert(legacy.checkbg:GetWidth()==24 and legacy.checkbg:GetHeight()==24)
+        local color=s.ns.GUI.Editor.SidebarShared.AddColorPicker(value,"Legacy",{1,0,0,.5},true,function()end)
+        assert(color.colorSwatch:GetWidth()==19 and color.colorSwatch.background:GetWidth()==16
+            and color.colorSwatch.checkers:GetWidth()==14)
+        assert(color.colorSwatch:GetTexture()==130939,"flat Workspace swatch leaked into Legacy")
+        for _,edge in pairs(color.frame._fpColorSwatchBorder or {})do assert(not edge:IsShown())end
+    end,{rowType="COMPACT"})
+    assert(select(2,row.children[1].label:GetFont())~=14)
+    local entry=saved[#saved];s.h.Equal({entry.slot:GetFont()},entry.font)
+    s.h.ui.ace:Release(host)
+end)
+Test("Workspace media triggers use native artwork and one click opens the existing picker without mutation",function()
+    local boundary=s.h.ui.native
+    local originals={}
+    for _,method in ipairs({"GetNormalTexture","GetPushedTexture","GetHighlightTexture","GetDisabledTexture"})do
+        originals[method]=boundary[method]
+        boundary[method]=function(self)
+            local key="mediaTest"..method
+            if not self[key]then self[key]=self:CreateTexture(nil,"ARTWORK")end
+            return self[key]
+        end
+    end
+    window,unit=s.Start()
+    unit.powerBarPresent=true;unit.showPowerBar=true
+    local library=s.ns.GUI.Editor.MediaLibrary
+    local open=library.Open;local options,calls
+    library.Open=function(value)options=value;calls=(calls or 0)+1;return open(value)end
+    for _,object in ipairs({"HealthBar","PowerBar","CastBar"})do
+        s.controller.RefreshCompositionTree();s.Select(object)
+        local button=s.Control("Texture","Button")
+        local art=assert(button.frame._fpMediaPickerArt)
+        assert(art.background.atlas=="common-dropdown-textholder" and art.background:IsShown())
+        assert(art.arrow.atlas=="common-dropdown-a-button" and art.arrow:IsShown())
+        assert(button.text.lastSetTextColor[1]>.9 and button.text.lastSetTextColor[2]>.9)
+        assert(select(2,button.text:GetFont())==13)
+        assert(art.background.points.TOPLEFT.relative==button.frame and art.background.points.TOPLEFT.x==0)
+        assert(art.background.points.BOTTOMRIGHT.relative==button.frame and art.background.points.BOTTOMRIGHT.x==0)
+        assert(art.arrow.points.RIGHT.relative==button.frame and art.arrow.points.RIGHT.x==-7)
+        assert(button.text.points.TOPLEFT.x==16 and button.text.points.BOTTOMRIGHT.x==-8-art.arrow:GetWidth())
+        if object=="PowerBar"then
+            local reference=Control("Size Mode")
+            local native=Native("Size Mode")
+            assert(native.points.LEFT.relative==reference.button_cover and native.points.RIGHT.relative==reference.button_cover)
+            -- Same native atlas: host insets cancel its -8/+8 horizontal expansion.
+            assert(art.background.points.TOPLEFT.x==native.points.LEFT.x-8)
+            assert(art.background.points.BOTTOMRIGHT.x==native.points.RIGHT.x+8)
+            assert(art.arrow.points.RIGHT.x==native.points.RIGHT.x+1)
+            assert(button.text.points.TOPLEFT.x==native.points.LEFT.x+8)
+        end
+        assert(button.text:GetText():sub(-2)~=" v" and not button:GetUserData("nativePropertyDropdown"))
+        -- Check all four native regions even when the boundary previously had no getters.
+        for _,method in ipairs({"GetNormalTexture","GetPushedTexture","GetHighlightTexture","GetDisabledTexture"})do
+            assert(button.frame[method](button.frame):GetAlpha()==0)
+        end
+        local before=s.h.Copy(unit);local previous=calls or 0
+        button.frame:GetScript("OnClick")(button.frame)
+        assert(calls==previous+1 and options.mediaType=="statusbar")
+        s.h.Equal(unit,before) -- Opening/previewing is not Apply.
+        button:Fire("OnEnter");assert(art.arrow.atlas=="common-dropdown-a-button-hover")
+        button:Fire("OnLeave");assert(art.arrow.atlas=="common-dropdown-a-button")
+        local height=button.frame:GetHeight()
+        button:SetDisabled(true);button:Fire("OnClick")
+        assert(calls==previous+1 and art.arrow.atlas=="common-dropdown-a-button-disabled")
+        button:SetDisabled(false);assert(button.frame:GetHeight()==height)
+        button._fpSetPropertyValueText("Langer Medienname / long media name")
+        assert(button.text:GetText()=="Langer Medienname / long media name")
+        assert(button.frame.__fpInspectorTooltip)
+    end
+    options.onApply("fp:statusbar:gradient");s.Drain()
+    assert(unit.castBarTexture=="fp:statusbar:gradient")
+    unit.castBarTexture="fp:statusbar:missing-media-control-test"
+    s.controller.RefreshActiveProperties();s.Drain()
+    local button=s.Control("Texture","Button")
+    assert(button.text:GetText()~="" and unit.castBarTexture=="fp:statusbar:missing-media-control-test")
+    button.frame:GetScript("OnClick")(button.frame)
+    assert(options.currentValue==unit.castBarTexture)
+    local art=button.frame._fpMediaPickerArt
+    local stale=button.events.OnClick;local previous=calls
+    s.Select("HealthBar")
+    assert(not art.background:IsShown() or s.Control("Texture","Button")==button)
+    stale();assert(calls==previous,"released trigger reopened the picker")
+    library.Open=open
+    s.controller.ReleaseInspector()
+    assert(not window.frame:IsShown())
+    s.h.ui.ace:Release(window)
+    assert(not art.background:IsShown() and not art.arrow:IsShown())
+    for _,method in ipairs({"GetNormalTexture","GetPushedTexture","GetHighlightTexture","GetDisabledTexture"})do
+        assert(button.frame[method](button.frame):GetAlpha()==1)
+        boundary[method]=originals[method]
+    end
+    local other=s.h.ui.ace:Create("Button")
+    local decoration=other.frame._fpMediaPickerArt
+    if decoration then assert(not decoration.background:IsShown() and not decoration.arrow:IsShown())end
+    assert(not other._fpSetPropertyValueText)
+    s.h.ui.ace:Release(other)
+end)
 assert(#s.h.ui.env.errors==0,table.concat(s.h.ui.env.errors,"\n"))
 print("Inspector Native Dropdown Rows: "..count.." groups PASS")

@@ -128,6 +128,13 @@ end)
 Test("existing fields mutate locally; long-duration and placement rebuild dependencies keep the tab",function()
     Start("Buffs",true);local other=p.h.Copy(unit.Debuffs);local record=unit.Buffs
     Click("geometry");Field("icon_size"):Fire("OnValueChanged",37);p.Drain();assert(record.iconSize==37)
+    for _,name in ipairs({"icons_per_row","max_rows","spacing_x","spacing_y"})do
+        local control=Field(name)
+        assert(control.type=="EditBox" and control.frame:GetWidth()==72)
+        assert(select(2,control.editbox:GetFont())==14 and control.editbox:GetHeight()>=20)
+        local fill=assert(control.frame._fpInspectorInputFill);assert(fill:IsShown())
+        p.h.Equal(fill.lastSetColorTexture,p.ns.GUI.Helpers.FormWidgets.ResolveFieldStyle("neutral").background)
+    end
     Field("icons_per_row"):Fire("OnEnterPressed","7");p.Drain();assert(record.iconsPerRow==7)
     Field("growth_x"):Fire("OnValueChanged","LEFT");p.Drain();assert(record.growthX=="LEFT")
     Field("placement"):Fire("OnValueChanged","INSIDE");p.Drain();Check("geometry")

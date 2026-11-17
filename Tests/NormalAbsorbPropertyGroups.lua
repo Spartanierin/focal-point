@@ -97,7 +97,7 @@ local function CheckProjection(key)
     Walk(body,function(widget)
         if widget.type=="Label" and widget:GetUserData("fpLabelTypography") then
             local _,size=widget.label:GetFont()
-            assert(size==13,"Workspace property labels must match the 13px tabs")
+            assert(size==14,"Workspace property labels and category tabs use 14")
             h.Equal(widget.label.lastSetTextColor,{1,1,1,1})
         end
     end)
@@ -135,7 +135,9 @@ local function CheckAppearanceFrames(body, titles, orders)
             assert(#w.children>0 and not w:GetUserData("flatPropertySectionTitle"))
             assert(w.frame:IsShown()==(state.Get().inspectorPropertyGroup==category))
             local padding=assert(w._fpSectionPadding)
-            assert(padding.left==16 and padding.right==16 and padding.top==27 and padding.bottom==13)
+            local nativeWorkspace=body:GetUserData("table")~=nil
+            local inset=nativeWorkspace and 24 or 16
+            assert(padding.left==inset and padding.right==inset and padding.top==(nativeWorkspace and 31 or 27) and padding.bottom==13)
             Walk(w,function(child)assert(not child:GetUserData("flatPropertyHeading"),"duplicate frame title")end)
             local title=w.titletext:GetText()
             if orders and orders[title]then
@@ -211,8 +213,10 @@ Test("all tab groups use Health frames with full-size rows and original projecti
         if w:GetUserData("table") and c[1] and c[1].type=="Label" and c[2] and c[2].type=="SimpleGroup" then
             local label=c[1].label:GetText(); labels[label]=(labels[label] or 0)+1
             assert(c[1].frame:GetWidth()==160,"Workspace label column changed")
-            -- The existing picker row is 25px in HEAD; ordinary compact rows are 29px.
-            assert(w.frame:GetHeight()==(label=="Texture" and 25 or 29),"property row height changed")
+            -- Checkbox rows contain the native 32px artwork; other rows keep their existing sizes.
+            local checkbox=false
+            Walk(c[2],function(control)if control.type=="CheckBox"then checkbox=true end end)
+            assert(w.frame:GetHeight()==(checkbox and 32 or label=="Texture" and 25 or 29),"property row height changed")
         end
     end)
     for _,label in ipairs({"Show","Texture","Color","Background Color","Border Width","Border Color",

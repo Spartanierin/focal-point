@@ -123,9 +123,12 @@ local function ApplyInspectorSectionTypography(section, textPresentation, canoni
     presentation.alpha = descriptor.alpha
     presentation.shadowEnabled = descriptor.shadowEnabled
     local color = descriptor.color
-    if textPresentation and (textPresentation.color or textPresentation.alpha ~= nil) then
+    if textPresentation and (textPresentation.color or textPresentation.alpha ~= nil or textPresentation.fontSize) then
         local api = ns.Ace and ns.Ace.PresentationPreview
         local overrides = not canonicalOnly and api and api.GetTypographyOverrides("inspector_section_heading")
+        if textPresentation.fontSize and not (overrides and overrides.size) then
+            presentation.fontSize = textPresentation.fontSize
+        end
         if textPresentation.color and not (overrides and overrides.color) then color = textPresentation.color end
         if textPresentation.alpha ~= nil and not (overrides and overrides.alpha ~= nil) then
             presentation.alpha = textPresentation.alpha

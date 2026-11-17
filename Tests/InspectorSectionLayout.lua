@@ -13,10 +13,9 @@ local function Headings(section,tab)
         if group:GetUserData("normalAbsorbPropertyGroup")==tab and group:GetUserData("normalAbsorbPropertyContent")then
             assert(group.type=="InlineGroup" and #group.children>0,"missing or empty frame")
             local padding=assert(group._fpSectionPadding)
-            local nativeHealth=section=="health" and tab=="appearance"
-            local horizontal=nativeHealth and 24 or 16
-            assert(padding.left==horizontal and padding.right==horizontal and padding.top==(nativeHealth and 31 or 27) and padding.bottom==13)
+            assert(padding.left==24 and padding.right==24 and padding.top==31 and padding.bottom==13)
             assert(group.frame:IsShown()==(p.state.Get().inspectorPropertyGroup==tab))
+            assert(select(2,group.titletext:GetFont())==15,"Workspace section headings use 15")
             result[#result+1]=group.titletext:GetText()
             p.Walk(group,function(w)assert(not w:GetUserData("flatPropertyHeading"),"duplicate flat section title")end)
         end
@@ -240,7 +239,7 @@ Test("Player/Target Health Appearance/Background keep their native content room 
         local box=group.frame._fpSectionGroupBox
         if group:GetUserData("normalAbsorbPropertyGroup")=="appearance"then
             assert(box and box:IsShown());NoMaterial(group);groups[#groups+1]=group
-        else assert(not box or not box:IsShown())end
+        else assert(group:GetUserData("normalAbsorbPropertyGroup")=="behavior" and box and box:IsShown());NoMaterial(group)end
     end end
     assert(#groups==2)
     for _,group in ipairs(groups)do
@@ -318,10 +317,15 @@ Test("Player/Target Health Appearance/Background keep their native content room 
     unit.castBarPresent=true;unit.showCastBar=true
     for _,object in ipairs({"PowerBar","NormalAbsorbBar","ClassPowerBar","CastBar"})do
         p.Select(object)
+        local count=0
         p.Walk(window._focalPointPropertyScroll,function(w)
-            assert(not w.frame._fpSectionGroupBox or not w.frame._fpSectionGroupBox:IsShown(),object)
-            if w._fpSectionPadding then assert(w._fpSectionPadding.right==16)end
+            if w.type=="InlineGroup" and #w.children>0 then
+                assert(w.frame._fpSectionGroupBox and w.frame._fpSectionGroupBox:IsShown(),object)
+                count=count+1;NoMaterial(w)
+            end
+            if w._fpSectionPadding then assert(w._fpSectionPadding.right==24)end
         end)
+        assert(count>0,"no native groups for "..object)
     end
 end)
 Test("every catalog Health unit reuses native groups only in the scoped workspace; boss aliases share config",function()
@@ -361,6 +365,11 @@ Test("every catalog Health unit reuses native groups only in the scoped workspac
                 p.h.Equal(w.titletext.lastSetTextColor,{NORMAL_FONT_COLOR.r,NORMAL_FONT_COLOR.g,NORMAL_FONT_COLOR.b,1})
                 local tail=w.children[#w.children]
                 assert(tail.type=="SimpleGroup" and #tail.children==0 and tail.frame:GetHeight()==5)
+            elseif w.type=="InlineGroup" and w:GetUserData("normalAbsorbPropertyGroup")=="behavior"then
+                assert(w.frame._fpSectionGroupBox and w.frame._fpSectionGroupBox:IsShown(),unitKey)
+                assert(w._fpSectionPadding.left==24 and w._fpSectionPadding.right==24
+                    and w._fpSectionPadding.top==31 and w._fpSectionPadding.bottom==13)
+                NoMaterial(w)
             else
                 assert(not w.frame._fpSectionGroupBox or not w.frame._fpSectionGroupBox:IsShown(),unitKey)
             end
@@ -400,6 +409,111 @@ Test("every catalog Health unit reuses native groups only in the scoped workspac
         p.h.ui.ace:Release(host)
     end
 end)
+Test("Health Behavior retains Reverse Fill and hides empty group/reserves without enabling Geometry",function()
+    Start("quick");p.Select("HealthBar");Click("behavior")
+    local body=Body("health")
+    local group,index
+    for i,w in ipairs(body.children)do
+        if w.type=="InlineGroup" and w:GetUserData("normalAbsorbPropertyGroup")=="behavior"then group,index=w,i end
+    end
+    assert(group and group.frame:IsShown() and group.frame._fpSectionGroupBox:IsShown())
+    assert(#group.children==1 and group.children[1].children[1].label:GetText()=="Reverse Fill")
+    assert(group.titletext.points.TOPLEFT.x==24 and group.titletext.points.TOPLEFT.y==-12)
+    p.h.Equal(group.titletext.lastSetTextColor,{NORMAL_FONT_COLOR.r,NORMAL_FONT_COLOR.g,NORMAL_FONT_COLOR.b,1})
+    for _,slot in ipairs({body.children[index-1],body.children[index+1]})do
+        assert(slot.frame:GetHeight()==6 and slot:GetUserData("normalAbsorbPropertyGroup")=="behavior" and slot.frame:IsShown())
+    end
+    assert(p.Tabs().geometry.disabled)
+    group:ReleaseChildren();Click("appearance")
+    assert(p.Tabs().behavior.disabled and not group.frame:IsShown())
+    assert(not body.children[index-2].frame:IsShown() and not body.children[index-1].frame:IsShown()
+        and not body.children[index+1].frame:IsShown())
+    p.controller.RefreshActiveProperties();p.Drain();Click("behavior")
+    assert(not p.Tabs().behavior.disabled and p.Tabs().geometry.disabled)
+end)
+Test("native Workspace groups retain local padding, reserved bounds and hide empty content without orphan slots",function()
+    Start("quick")
+    local window,unit=Current()
+    unit.castBarPresent=true;unit.showCastBar=true
+    unit.alternativePowerBarPresent=true;unit.showAlternativePowerBar=true
+    for _,object in ipairs({"PowerBar","NormalAbsorbBar","HealingAbsorbBar","AlternativePowerBar","ClassPowerBar","CastBar"})do
+        p.Select(object)
+        for _,tab in ipairs({"appearance","geometry","behavior"})do
+            Click(tab)
+            local count=0
+            p.Walk(window._focalPointPropertyScroll,function(w)
+                if w.type=="InlineGroup" and w:GetUserData("normalAbsorbPropertyGroup")then
+                    local key=w:GetUserData("normalAbsorbPropertyGroup")
+                    assert(w.frame:IsShown()==(key==p.state.Get().inspectorPropertyGroup and #w.children>0))
+                    if #w.children>0 then
+                        count=count+1;assert(w.frame._fpSectionGroupBox and w.frame._fpSectionGroupBox:IsShown())
+                        NoMaterial(w)
+                        assert(w._fpSectionPadding.left==24 and w._fpSectionPadding.right==24
+                            and w._fpSectionPadding.top==31 and w._fpSectionPadding.bottom==13)
+                        assert(w.titletext.points.TOPLEFT.x==24 and w.titletext.points.TOPLEFT.y==-12)
+                        p.h.Equal(w.titletext.lastSetTextColor,{NORMAL_FONT_COLOR.r,NORMAL_FONT_COLOR.g,NORMAL_FONT_COLOR.b,1})
+                        local index
+                        for i,child in ipairs(w.parent.children)do if child==w then index=i end end
+                        for _,slot in ipairs({w.parent.children[index-1],w.parent.children[index+1]})do
+                            assert(slot.frame:GetHeight()==6 and slot:GetUserData("normalAbsorbPropertyGroup")==key)
+                            assert(slot.frame:IsShown()==w.frame:IsShown())
+                        end
+                    end
+                end
+            end)
+            assert(count>0)
+        end
+    end
+    p.Select("PowerBar");Click("appearance")
+    local background
+    p.Walk(window._focalPointPropertyScroll,function(w)
+        if w.type=="InlineGroup" and w.titletext:GetText()=="Background"then background=w end
+    end)
+    assert(background);local body=background.parent
+    local index
+    for i,child in ipairs(body.children)do if child==background then index=i end end
+    background:ReleaseChildren();Click("behavior");Click("appearance")
+    assert(not background.frame:IsShown())
+    assert(not body.children[index-2].frame:IsShown() and not body.children[index-1].frame:IsShown()
+        and not body.children[index+1].frame:IsShown(),"empty group left reserve/gap slots visible")
+    p.controller.RefreshActiveProperties();p.Drain()
+    assert(p.selection.SelectObject({kind="unit",unit="player"}));p.Drain()
+    local rootCount=0
+    p.Walk(window._focalPointPropertyScroll,function(w)
+        if w.type=="InlineGroup" and #w.children>0 then
+            rootCount=rootCount+1;assert(w.frame._fpSectionGroupBox and w.frame._fpSectionGroupBox:IsShown());NoMaterial(w)
+        end
+    end)
+    assert(rootCount>0)
+end)
+Test("Cast Size/Anchor retain label and control width at normal and narrow viewports with native inner room",function()
+    Start("quick")
+    local _,unit=Current();unit.castBarPresent=true;unit.showCastBar=true
+    local oldWidth,oldHeight=UIParent:GetWidth(),UIParent:GetHeight()
+    for _,width in ipairs({1280,520})do
+        UIParent:SetSize(width,720);p.controller.UpdateActiveInspectorGeometry()
+        p.Select("CastBar");Click("geometry")
+        local body=Body("cast");body:DoLayout()
+        local count=0
+        for _,group in ipairs(body.children)do
+            if group.type=="InlineGroup" and group.frame:IsShown()then
+                count=count+1;group:DoLayout()
+                assert(group.content:GetWidth()==group.frame:GetWidth()-48)
+                for _,row in ipairs(group.children)do
+                    local label,value=row.children[1],row.children[2]
+                    assert(label.frame:GetWidth()==160)
+                    assert(row.frame:GetWidth()<=group.content:GetWidth())
+                    assert(value.frame:GetWidth()>=97,"Cast value column is narrower than the existing compact slider")
+                end
+                local last=group.children[#group.children]
+                local bottom=-last.frame.points.TOPLEFT.y+last.frame:GetHeight()
+                assert(group.frame:GetHeight()-31-bottom==9,"Cast last row lost nominal bottom room")
+            end
+        end
+        assert(count==2,"Cast geometry must retain Size and Anchor")
+    end
+    UIParent:SetSize(oldWidth,oldHeight);p.controller.UpdateActiveInspectorGeometry()
+end)
 Test("native binding survives override/reset, rebuild, release/reuse and reopen without duplicate decoration",function()
     for _,path in ipairs({"GUI/Helpers/PresentationPreview.lua","GUI/Helpers/PresentationCompositionPreview.lua"})do
         local name=path:match("([^/]+)%.lua$")
@@ -423,13 +537,15 @@ Test("native binding survives override/reset, rebuild, release/reuse and reopen 
         and box.points.BOTTOMRIGHT.y==-alternate.decorationReserve.bottom,"renderer ignored the supplied descriptor")
     for _=1,20 do
         local yellow=NORMAL_FONT_COLOR
-        binding.ApplyInspectorSectionStructure(owner,"muted",{headerInsetX=24,headerTopGap=12,
+        binding.ApplyInspectorSectionStructure(owner,"muted",{headerInsetX=24,headerTopGap=12,fontSize=15,
             color={yellow.r,yellow.g,yellow.b},alpha=1},"blizzardGroupBox")
         assert(owner.titletext.points.TOPLEFT.x==24 and owner.titletext.points.TOPLEFT.y==-12)
         assert(preview.SetTypographyPresentation("inspector_section_heading",{size=14}))
+        assert(select(2,owner.titletext:GetFont())==14,"explicit size override must retain priority")
         assert(owner.titletext.points.TOPLEFT.x==24 and owner.titletext.points.TOPLEFT.y==-12)
         assert(preview.ClearTypography("inspector_section_heading"))
         assert(owner.titletext.points.TOPLEFT.x==24 and owner.titletext.points.TOPLEFT.y==-12)
+        assert(select(2,owner.titletext:GetFont())==15,"clearing overrides must restore the local heading size")
         local function CheckColor(r,g,b)
             local color=owner.titletext.lastSetTextColor
             assert(color[1]==r and color[2]==g and color[3]==b and color[4]==1)

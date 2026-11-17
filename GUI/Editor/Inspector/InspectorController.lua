@@ -1808,9 +1808,23 @@ function InspectorController.Build(container, state, options)
         return content
     end
 
+    local nativePropertyGroupSlots = {}
+    local nativePropertyScopes = {power=true,absorbs=true,alt_power=true,cast=true,texts=true,indicators=true,decoration=true,
+        auras=true,class_power=true,segmented_bars=true,frame=true,health=true}
     local function AddFramedObjectPropertyGroup(parent, title, addTopSpacing, presentationMode, textPresentation)
+        local scope = ResolvePropertyScope()
+        local nativeWorkspace = buildPropertiesOnly and type(workspaceIsCurrent) == "function"
+            and ((scope and nativePropertyScopes[scope.sectionKey]) or IsSelectedUnitRootObject(selectedUnit))
+            -- Health Appearance/Background supply their frozen explicit presentation.
+            and not (scope and scope.sectionKey == "health" and presentationMode)
+        local gap
         if addTopSpacing then
-            AddSpacer(parent, 8)
+            gap = AddSpacer(parent, nativeWorkspace and 2 or 8)
+        end
+        if nativeWorkspace then
+            presentationMode = "blizzardGroupBox"
+            local yellow = NORMAL_FONT_COLOR or ns.GUI.Helpers.TextStyles.Get("strongHeading")
+            textPresentation = {headerInsetX=24,headerTopGap=12,fontSize=15,color={yellow.r,yellow.g,yellow.b},alpha=1}
         end
 
         local descriptor = presentationMode and InspectorBinding.ResolveSectionPresentation("muted", presentationMode)
@@ -1824,7 +1838,11 @@ function InspectorController.Build(container, state, options)
         if group and InspectorBinding.ApplyInspectorSectionStructure then
             InspectorBinding.ApplyInspectorSectionStructure(group, "muted", textPresentation, descriptor or presentationMode)
         end
+        if nativeWorkspace then
+            ns.GUI.Helpers.FormSectionSurfaceRenderer.ApplySectionPadding(group, {left=24,right=24,top=31,bottom=13})
+        end
         local after = reserve and AddSpacer(parent, reserve.bottom)
+        if nativeWorkspace then nativePropertyGroupSlots[group] = {before=before,after=after,gap=gap} end
         return group, before, after
     end
 
@@ -1862,6 +1880,126 @@ function InspectorController.Build(container, state, options)
     local PROPERTY_LABEL_WIDTH = 108
 
     local function AddPropertyRow(parent, labelText, valueBuilder, options)
+        local checkboxSize = 32 -- Blizzard EditModeSettingCheckboxTemplate.
+        local colorSwatchSize = 24 -- Local, reversible Customize A/B size.
+        local checkboxHeight
+        local function ApplyWorkspaceValueFont(widget)
+            if widget.type == "ColorPicker" then
+                local swatch = widget.colorSwatch
+                local deltaX, deltaY = colorSwatchSize - swatch:GetWidth(), colorSwatchSize - swatch:GetHeight()
+                local bounds = {}
+                for _, region in ipairs({swatch, swatch.background, swatch.checkers}) do
+                    local width, height = region:GetWidth(), region:GetHeight()
+                    bounds[#bounds + 1] = {region, width, height}
+                    region:SetSize(width + deltaX, height + deltaY)
+                end
+                local originalTexture = swatch:GetTexture()
+                swatch:SetTexture("Interface\\Buttons\\WHITE8X8")
+                local border = widget.frame._fpColorSwatchBorder
+                if not border then
+                    border = {}
+                    widget.frame._fpColorSwatchBorder = border
+                    for _, side in ipairs({"TOP", "BOTTOM", "LEFT", "RIGHT"}) do
+                        local edge = widget.frame:CreateTexture(nil, "OVERLAY", nil, 1)
+                        border[side] = edge
+                        if side == "TOP" or side == "BOTTOM" then
+                            edge:SetPoint(side.."LEFT", swatch, side.."LEFT", 0, 0)
+                            edge:SetPoint(side.."RIGHT", swatch, side.."RIGHT", 0, 0)
+                            edge:SetHeight(1)
+                        else
+                            edge:SetPoint("TOP"..side, swatch, "TOP"..side, 0, -1)
+                            edge:SetPoint("BOTTOM"..side, swatch, "BOTTOM"..side, 0, 1)
+                            edge:SetWidth(1)
+                        end
+                    end
+                end
+                local borderColor = FormWidgets.ResolveFieldStyle("neutral").border
+                for _, edge in pairs(border) do edge:SetColorTexture(unpack(borderColor)); edge:Show() end
+                local release = widget.events and widget.events.OnRelease
+                widget:SetCallback("OnRelease", function(owner, event)
+                    for _, edge in pairs(border) do edge:Hide() end
+                    swatch:SetTexture(originalTexture)
+                    for _, entry in ipairs(bounds) do entry[1]:SetSize(entry[2], entry[3]) end
+                    if release then release(owner, event) end
+                end)
+            end
+            local slots = {}
+            if widget.type == "Dropdown" then
+                slots = {widget.text}
+                local native = widget:GetUserData("nativePropertyDropdown")
+                if native and native.Text then slots[#slots + 1] = native.Text end
+            elseif widget.type == "CheckBox" or (widget.type == "Button" and widget._fpSetPropertyValueText) then
+                slots = {widget.text}
+            elseif widget.type == "FPCompactSlider" or widget.type == "Slider" then
+                slots = {widget.editbox, widget.lowtext, widget.hightext}
+            elseif widget.type == "EditBox" then
+                slots = {widget.editbox}
+                local input = widget.editbox
+                local previousStyle, height = input._fpFieldStyle, input:GetHeight()
+                local textColor = {input:GetTextColor()}
+                local labelFont, labelColor = {widget.label:GetFont()}, {widget.label:GetTextColor()}
+                local regions = {}
+                for _, region in ipairs({input:GetRegions()}) do
+                    if region:GetObjectType() == "Texture" then
+                        regions[#regions + 1] = {region, {region:GetVertexColor()}, region:IsShown()}
+                    end
+                end
+                FormWidgets.StyleEditBox(widget, "neutral")
+                input:SetTextColor(unpack(textColor))
+                widget.label:SetFont(unpack(labelFont)); widget.label:SetTextColor(unpack(labelColor))
+                -- Keep AceGUI's 3+3 vertical text insets, including while its OK button is shown.
+                input:SetHeight(math.max(height, 20))
+                local fill = widget.frame._fpInspectorInputFill
+                if not fill then
+                    fill = widget.frame:CreateTexture(nil, "BACKGROUND")
+                    widget.frame._fpInspectorInputFill = fill
+                end
+                fill:SetAllPoints(input)
+                fill:SetColorTexture(unpack(FormWidgets.ResolveFieldStyle("neutral").background))
+                fill:Show()
+                local release = widget.events and widget.events.OnRelease
+                widget:SetCallback("OnRelease", function(owner, event)
+                    fill:Hide()
+                    input:SetHeight(height)
+                    input._fpFieldStyle = previousStyle
+                    for _, entry in ipairs(regions) do
+                        entry[1]:SetVertexColor(unpack(entry[2])); entry[1]:SetShown(entry[3])
+                    end
+                    if release then release(owner, event) end
+                end)
+            elseif widget.type == "Label" then
+                slots = {widget.label}
+            end
+            local original = {}
+            for _, slot in ipairs(slots) do
+                local font, size, flags = slot:GetFont()
+                original[#original + 1] = {slot, font, size, flags}
+                slot:SetFont(font, widget.type == "EditBox" and 14 or 13, flags)
+            end
+            if #original > 0 then
+                local checkboxBounds
+                if widget.type == "CheckBox" then
+                    checkboxBounds = {widget.checkbg:GetWidth(), widget.checkbg:GetHeight(), widget.frame:GetHeight()}
+                    widget.checkbg:SetSize(checkboxSize, checkboxSize)
+                    widget:SetHeight(math.max(widget.frame:GetHeight(), checkboxSize))
+                    checkboxHeight = math.max(checkboxHeight or 0, widget.frame:GetHeight())
+                end
+                local release = widget.events and widget.events.OnRelease
+                widget:SetCallback("OnRelease", function(owner, event)
+                    for _, entry in ipairs(original) do entry[1]:SetFont(entry[2], entry[3], entry[4]) end
+                    if checkboxBounds then
+                        owner.checkbg:SetSize(checkboxBounds[1], checkboxBounds[2])
+                        owner:SetHeight(checkboxBounds[3])
+                    end
+                    if release then release(owner, event) end
+                end)
+                if widget.type == "CheckBox" then widget:SetLabel(widget.text:GetText()) end
+                if widget.type == "Label" then widget:SetText(widget.label:GetText()) end
+                if widget.type == "FPCompactSlider" then widget:SetNativeInspectorPresentation() end
+            end
+            for _, child in ipairs(widget.children or {}) do ApplyWorkspaceValueFont(child) end
+        end
+
         if not parent then
             return nil, nil
         end
@@ -1906,7 +2044,7 @@ function InspectorController.Build(container, state, options)
             row:AddChild(label)
             FormWidgets.BindLabelTypography(label, "label", "inspector_label")
             if workspace then
-                FormWidgets.ApplyTextStyle(label.label, "identity", 13, 1)
+                FormWidgets.ApplyTextStyle(label.label, "identity", 14, 1)
                 label.label:SetTextColor(1, 1, 1, 1)
                 label.label:SetWordWrap(true)
                 label:SetText(labelText or "")
@@ -1950,6 +2088,13 @@ function InspectorController.Build(container, state, options)
 
         if type(valueBuilder) == "function" then
             valueBuilder(value, row, label)
+        end
+        if workspace then
+            ApplyWorkspaceValueFont(value)
+            if checkboxHeight and rowHeight then
+                value:SetHeight(math.max(controlHeight, checkboxHeight))
+                row:SetHeight(math.max(rowHeight, checkboxHeight))
+            end
         end
 
         return row, value
@@ -2248,6 +2393,9 @@ function InspectorController.Build(container, state, options)
 
     local function AddPropertyPickerValueRow(parent, labelText, valueText, onClick, disabled, options)
         local button
+        local nativeLook = type(workspaceIsCurrent) == "function"
+        local scope = nativeLook and ResolvePropertyScope()
+        local pickerActive = true
         AddPropertyRow(parent, labelText, function(valueGroup)
             options = type(options) == "table" and options or {}
             button = AceGUI:Create("Button")
@@ -2264,6 +2412,8 @@ function InspectorController.Build(container, state, options)
                 if disabled or type(onClick) ~= "function" then
                     return
                 end
+                if nativeLook and (not pickerActive or button.disabled or not workspaceIsCurrent() or ResolvePropertyScope() ~= scope
+                    or ns.UnitFrameUtils.GetUnitDB(selectedUnit) ~= unitConfig) then return end
                 onClick()
             end)
             if FormWidgets.ApplyModalActionButtonVisual then
@@ -2274,8 +2424,65 @@ function InspectorController.Build(container, state, options)
             if FormWidgets.SetInspectorButtonTooltip then
                 FormWidgets.SetInspectorButtonTooltip(button, options.tooltip)
             end
+            if nativeLook then
+                -- WowStyle1DropdownTemplate artwork only: the AceGUI Button remains the click owner.
+                local frame = button.frame
+                local art = frame._fpMediaPickerArt
+                if not art then
+                    art = { background = frame:CreateTexture(nil, "BACKGROUND"), arrow = frame:CreateTexture(nil, "OVERLAY") }
+                    frame._fpMediaPickerArt = art
+                    art.background:SetAtlas("common-dropdown-textholder", true)
+                    -- Match BindNativeDropdown's 8px inner host plus the native atlas's -8/+8 bounds.
+                    art.background:SetPoint("TOPLEFT", frame, "TOPLEFT", 0, 7)
+                    art.background:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", 0, -9)
+                    art.arrow:SetPoint("RIGHT", frame, "RIGHT", -7, -3)
+                end
+                local textures, seen, textColor = {}, {}, { button.text:GetTextColor() }
+                local setDisabled, onRelease = button.SetDisabled, button.events and button.events.OnRelease
+                local nativeTextures = {left=frame.Left, middle=frame.Middle, right=frame.Right}
+                for _, method in ipairs({"GetNormalTexture", "GetPushedTexture", "GetHighlightTexture", "GetDisabledTexture"}) do
+                    nativeTextures[method] = frame[method] and frame[method](frame) or nil
+                end
+                for _, texture in pairs(nativeTextures) do
+                    if not seen[texture] then
+                        seen[texture] = true
+                        textures[#textures + 1] = {texture, texture:GetAlpha()}
+                        texture:SetAlpha(0)
+                    end
+                end
+                local function Paint(hovered)
+                    local inactive = button.disabled == true
+                    art.arrow:SetAtlas("common-dropdown-a-button" .. (inactive and "-disabled" or hovered and "-hover" or ""), true)
+                    art.background:SetAlpha(inactive and .5 or 1)
+                    local color = FormWidgets.ResolveFieldStyle("editor_inset").valueColor
+                    button.text:SetTextColor(inactive and .5 or color[1], inactive and .5 or color[2], inactive and .5 or color[3], 1)
+                end
+                button.text:ClearAllPoints()
+                button.text:SetPoint("TOPLEFT", frame, "TOPLEFT", 16, -1)
+                button.text:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -8-art.arrow:GetWidth(), 1)
+                button:SetText(valueText or (L["OPTION_NONE"] or "None"))
+                art.background:Show(); art.arrow:Show()
+                button.SetDisabled = function(owner, value)
+                    setDisabled(owner, value)
+                    Paint(false)
+                end
+                button:SetCallback("OnEnter", function() Paint(true) end)
+                button:SetCallback("OnLeave", function() Paint(false) end)
+                button:SetCallback("OnRelease", function(owner, event)
+                    pickerActive = false
+                    art.background:Hide(); art.arrow:Hide()
+                    for _, entry in ipairs(textures) do entry[1]:SetAlpha(entry[2]) end
+                    owner.SetDisabled = setDisabled
+                    owner.text:SetTextColor(unpack(textColor))
+                    FormWidgets.ResetInspectorButtonState(owner)
+                    owner._fpSetPropertyValueText = nil
+                    if onRelease then onRelease(owner, event) end
+                end)
+                Paint(false)
+            end
             button._fpSetPropertyValueText = function(newText)
-                button:SetText(string.format("%s %s", newText or (L["OPTION_NONE"] or "None"), options.glyph or "v"))
+                local text = newText or (L["OPTION_NONE"] or "None")
+                button:SetText(nativeLook and text or string.format("%s %s", text, options.glyph or "v"))
             end
             valueGroup:AddChild(button)
         end)
@@ -2559,6 +2766,16 @@ function InspectorController.Build(container, state, options)
                     if key == active then child.frame:Show() else child.frame:Hide() end
                 end
             end
+            for child, slots in pairs(nativePropertyGroupSlots) do
+                if child.parent == body then
+                    local key = child:GetUserData("normalAbsorbPropertyGroup")
+                    local shown = (not key or key == active) and #child.children > 0
+                    child.frame:SetShown(shown)
+                    slots.before.frame:SetShown(shown)
+                    slots.after.frame:SetShown(shown)
+                    if slots.gap then slots.gap.frame:SetShown(shown) end
+                end
+            end
             for _, group in ipairs(groups) do
                 group.button:SetDisabled(not available[group.key])
                 local surface = group.button.frame._fpNormalAbsorbTab
@@ -2648,7 +2865,7 @@ function InspectorController.Build(container, state, options)
                     region:SetAlpha(0)
                 end
             end
-            FormWidgets.ApplyTextStyle(surface.label, "label", 13, 1)
+            FormWidgets.ApplyTextStyle(surface.label, "label", propertyNavigationHost and 14 or 13, 1)
             surface.label:SetText(group.label)
             local labelInset = propertyNavigationHost and 4 or 8
             surface.label:SetPoint("LEFT", frame, "LEFT", labelInset, 0)
@@ -2714,6 +2931,14 @@ function InspectorController.Build(container, state, options)
                     if pendingSpacer then pendingSpacer:SetUserData("normalAbsorbPropertyGroup", key) end
                 end
                 pendingSpacer = child.type == "SimpleGroup" and child ~= body.children[1] and child or nil
+            end
+            for group, slots in pairs(nativePropertyGroupSlots) do
+                if group.parent == body then
+                    local key = membership[group]
+                    slots.before:SetUserData("normalAbsorbPropertyGroup", key)
+                    slots.after:SetUserData("normalAbsorbPropertyGroup", key)
+                    if slots.gap then slots.gap:SetUserData("normalAbsorbPropertyGroup", key) end
+                end
             end
         end
         return CreateGroup, projectGroups, RegisterGroups
@@ -3293,7 +3518,7 @@ function InspectorController.Build(container, state, options)
                 local titleColor = NORMAL_FONT_COLOR or ns.GUI.Helpers.TextStyles.Get("strongHeading")
                 healthGroupLayout = {
                     contentPadding = { left = 24, right = 24, top = 31, bottom = 13 },
-                    title = { headerInsetX = 24, headerTopGap = 12, color = { titleColor.r, titleColor.g, titleColor.b }, alpha = 1 },
+                    title = { headerInsetX = 24, headerTopGap = 12, fontSize = 15, color = { titleColor.r, titleColor.g, titleColor.b }, alpha = 1 },
                     groupGap = 2,
                     bottomSpacer = 5,
                 }

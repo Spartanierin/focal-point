@@ -36,7 +36,7 @@ local function Check(active,art)
         local left,right=tab.frame.points.LEFT,tab.frame.points.RIGHT
         local tabWidth=right.x-left.x
         assert(tabWidth>=s.label:GetStringWidth()+8)
-        local _,size=s.label:GetFont();assert(size==13 and tab.frame:GetHeight()==30)
+        local _,size=s.label:GetFont();assert(size==14 and tab.frame:GetHeight()==30)
         width=width+tabWidth
         for _,spec in ipairs(specs)do assert(not s[spec[1]] or not s[spec[1]]:IsShown(),"atlas visible in fixed navigation")end
         for _,name in ipairs({"fill","top","left","right"})do assert(not s[name]:IsShown())end

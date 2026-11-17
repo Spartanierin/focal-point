@@ -496,6 +496,11 @@ local function ReactionControls()
         local picker=host.children[i+1];assert(picker.type=="ColorPicker" and picker.parent==host)
         assert(picker:GetUserData("focalPointAnchorKey")==key)
         assert(picker.frame:IsShown() and picker.frame:GetWidth()==24 and not picker.HasAlpha)
+        assert(picker.colorSwatch:GetWidth()==24 and picker.colorSwatch:GetHeight()==24)
+        assert(picker.colorSwatch.background:GetWidth()==21 and picker.colorSwatch.checkers:GetWidth()==19)
+        assert(picker.frame:GetHeight()>=picker.colorSwatch:GetHeight())
+        assert(picker.colorSwatch:GetTexture()=="Interface\\Buttons\\WHITE8X8")
+        for _,edge in pairs(assert(picker.frame._fpColorSwatchBorder))do assert(edge:IsShown())end
         assert(picker.text:GetText()=="")
         assert(Left(picker)>=Right(host.children[i]))
         pickers[i]=picker
