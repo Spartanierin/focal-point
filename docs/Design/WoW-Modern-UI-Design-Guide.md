@@ -2,15 +2,15 @@
 
 Status — Gestalterische Grundlage für eigenständige Focal-Point-Funktionsfenster.
 Die technischen Angaben beschreiben den Stand nach dem UI-Abschluss auf Basis
-von `ef83876e441a3a4cd62d34a68302ce515ab41b61`.
+von `2396b27967ed66c9e3702a38eb845d34da3a5036` (Vorbereitung von 3.0.5).
 Native Grafikabnahmen bleiben Bestandteil jedes einzelnen Umstellungsblocks.
 
 ## Zwei Designwelten
 
 | Designwelt | Einsatz und Aufgabe |
 | --- | --- |
-| Edit Mode Look | Canvas / Customize, Add Object, Add Unit sowie Manage Layouts, Specialization Assignments, Options und New Layout. Gemeinsame Fensteroptik bei jeweils eigener Informationsarchitektur. |
-| WoW Modern Look | Media Libraries und Tag Library verwenden weiterhin ihre bestehende Modern-/Materialdarstellung. Weitere Funktionsfenster werden je aktivem Consumer gesondert bewertet. |
+| Edit Mode Look | Canvas / Customize, Add Object, Add Unit sowie Manage Layouts, Specialization Assignments, Options und New Layout. Auch Texts Manager, aktiver kompakter Texteditor, Add Text / Choose Template, Tag Library und Media Library verwenden diesen Look. Gemeinsame Fensteroptik bei jeweils eigener Informationsarchitektur. |
+| WoW Modern Look | Bleibt als vorhandener Factory-/Legacy-Pfad verfügbar. Die aktiven Media-/Tag-Libraries und kompakten Textfenster verwenden ausdrücklich Edit-Mode-Opt-ins; historische Großfenster sind davon zu unterscheiden. |
 
 Die Zuordnung ist eine Produktentscheidung. Der technische Umstellungsstand wird
 je Consumer geprüft. Die vorhandene
@@ -68,7 +68,7 @@ Communities-spezifischen Listenflächen besitzen getrennte Zuständigkeiten.
 | Baustein | Bestehender Einstieg und tatsächliche Grenze |
 | --- | --- |
 | Compact-Dialog | `FormWidgets.CreateCompactFormDialog(options)` unterstützt die expliziten Opt-ins `windowChrome = "editmode"` und `windowChrome = "modern"`. `portrait = false` wählt im Modern-Pfad den portraitlosen Rahmen. Ohne Opt-in bleiben die bestehenden Dialog-Defaults erhalten. Der Consumer behält Fensterbesitz, Inhalt und fachliche Aktionen. |
-| Modern-Chrome direkt | `FormWidgets.ApplyModernWindowChrome(window, options)` verwendet mit `nineSlice = true` die vorhandenen Blizzard-NineSlice-Layouts. `portrait` wählt den Rahmen. `focalPointTool = true` aktiviert die bisherige Focal-Point-Materialdarstellung. |
+| Modern-Chrome direkt | `FormWidgets.ApplyModernWindowChrome(window, options)` unterstützt auch den expliziten Edit-Mode-Opt-in `windowChrome = "editmode"`, den die Media Library verwendet. Ohne diesen Opt-in verwendet `nineSlice = true` die vorhandenen Blizzard-NineSlice-Layouts; `portrait` wählt den Rahmen und `focalPointTool = true` aktiviert die bisherige Focal-Point-Materialdarstellung. |
 | Hintergrund und oberer Übergang | Im Modern-Pfad reicht die Fabrik `background = "blizzard"` und `topTileStreaks = true` weiter. Rock wird über den bestehenden Hintergrundpfad erzeugt. Streaks sind ein explizites Opt-in im portraitlosen NineSlice-Pfad und werden erst nach erfolgreicher Atlas-Abfrage angezeigt. Der Edit-Mode-Pfad verwendet stattdessen den dunklen, transparenten Hintergrund ohne Rock oder Streaks. |
 | Restore, Close und Fokus | `RestoreDefaultWindowChrome()`, `EnsureStandardWindowCloseButton()`, `CenterWindow()` und `FocusWindow()` sind vorhandene Funktionen. Die Compact-Fabrik besitzt Shell-Release und Escape-Anbindung. `dialog:Close()` versteckt das Fenster, tatsächliches Release wird vom bestehenden Consumer-Vertrag bestimmt. |
 | Text und Sections | `ApplyTextStyle(target, role, size, alpha)`, `CreateBodyText()` und `CreateSectionTitle()` verwenden vorhandene Textrollen. Die konkrete Typografie und Abstände werden am jeweiligen Content geprüft. |
@@ -102,21 +102,27 @@ Technische Quellen sind
 - Der Composition Tree besitzt eigene Rows, Icon-Zuordnung und Scrollbar-Grafik.
   Seine Gestaltung liefert Referenzwerte. Selection- und Tree-Controller bleiben
   fachlich gebunden. [CompositionTreeControl.lua](../../GUI/Editor/Composition/CompositionTreeControl.lua)
-- Media Library und Tag Library verwenden weiterhin direkte Windows mit
-  `ApplyModernWindowChrome()` und `focalPointTool = true`.
+- Die Media Library behält ihr direktes AceGUI-Window und verwendet
+  `ApplyModernWindowChrome()` mit `windowChrome = "editmode"`. Die Tag Library
+  verwendet die bestehende Compact-Fabrik mit demselben Edit-Mode-Opt-in.
+  Beide besitzen lokale OptionsFrame-/UniqueCornersLayout-GroupBoxes: Die acht
+  Randatlanten werden geprüft, Center ist optional. Inhalt und Lifecycle bleiben
+  beim jeweiligen Consumer.
   [MediaLibraryView.lua](../../GUI/Editor/MediaLibrary/MediaLibraryView.lua),
   [TagLibraryView.lua](../../GUI/Pages/TagLibrary/TagLibraryView.lua)
 - Options → Manage Text Templates öffnet über `GUIController.OpenTextBuilderWindow()`
   und das in `TextBuilderEntity.lua` überschriebene `TextBuilder.OpenWindow` den Texts Manager.
-  Dieser und die aktiven New-Template-/Edit-Text-Dialoge verwenden Compact-Dialoge
-  ohne Edit-Mode-/Modern-Opt-in. Die direkte Modern-Großfensterimplementierung in
-  `TextBuilderController.lua` ist nicht der normale Options-Einstieg. Diese Fenster
-  sind nicht Bestandteil der abgeschlossenen Vier-Fenster-Umstellung.
+  Dieser, Add Text / Choose Template und die aktiven New-Template-/Edit-Template-/
+  Edit-Text-Dialoge verwenden Compact-Dialoge mit `windowChrome = "editmode"`.
+  Die direkte Modern-Großfensterimplementierung in `TextBuilderController.lua`
+  ist weiterhin nicht der normale Options-Einstieg. Dessen Unsaved-Changes-Dialog
+  verwendet unabhängig davon ebenfalls den expliziten Edit-Mode-Pfad.
   [TextBuilderEntity.lua](../../GUI/Pages/TextBuilder/TextBuilderEntity.lua),
   [TextTemplateLibraryWindow.lua](../../GUI/Editor/TextTemplateLibraryWindow.lua)
-- `titleFontSize`, `titleOffsetY` und `headerDrag` sind derzeit Optionen des
-  kompakten Edit-Mode-Pfads. Ihre Übertragbarkeit auf Modern-Fenster erfordert eine
-  eigene Prüfung des bestehenden Titel- und Drag-Vertrags.
+- `titleFontSize`, `titleOffsetY` und `headerDrag` sind Optionen des expliziten
+  Edit-Mode-Pfads, sowohl über die Compact-Fabrik als auch über den direkten
+  `ApplyModernWindowChrome()`-Einstieg. Andere Modern-/Legacy-Verträge bleiben
+  davon getrennt.
 
 ## Entwurf und Umsetzung eines einzelnen Fensters
 

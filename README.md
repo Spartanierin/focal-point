@@ -20,18 +20,24 @@ characters.
 <a id="release-302"></a>
 <a id="release-303"></a>
 <a id="release-304"></a>
+<a id="release-305"></a>
 
-## Release 3.0.4
+## Release 3.0.5
 
-Version 3.0.4 gives Manage Layouts, Specialization Assignments, Options, and New
-Layout consistent Edit Mode styling, clearer controls, and larger header drag
-areas. It also stabilizes visual text dragging and Inspector navigation, and
-corrects background layering when pooled windows switch chrome styles.
-The Add Object and Add Unit improvements from 3.0.3, independently positioned
-CUSTOM Power Bars, and configurable NPC Health reaction colors remain available.
-The 3.0.4 release smoke checks passed on Retail/Midnight and WoW Forever,
-including Inspector dropdowns. These checks do not guarantee every function or
-client configuration.
+Version 3.0.5 is being prepared as a release candidate for the completed editor
+UI and localization update. It extends consistent Edit Mode styling to the text
+tools, Tag and Media Libraries, layout dialogs, and confirmation windows.
+Customize now has fixed category navigation, native Blizzard group boxes, and
+more readable controls; media selection still opens the existing Media Library.
+Text templates have clearer descriptions, example previews, and saved-layout
+usage information. Native editor context menus group related actions and open
+correctly on selected units in Arrange mode. Missing editor translations and
+layout activation/import-conflict messages have also been completed.
+
+The UI and localization changes have been natively checked on Retail/Midnight
+and WoW Forever. These checks do not guarantee every function or client
+configuration. Earlier improvements remain available; see the
+[changelog](CHANGELOG.md) for the preserved 3.0.4 and earlier release notes.
 
 Before updating, close the game and make an external backup of your Focal Point
 SavedVariables. A native upgrade test using a real 2.x backup retained existing

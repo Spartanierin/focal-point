@@ -10,6 +10,25 @@ This changelog uses the following categories:
 * `Fixed` for bug fixes
 * `Removed` for removed functionality
 
+## 3.0.5
+
+### Improved
+
+* Unified Edit Mode styling across the Texts Manager, compact text editor, Add Text / Choose Template, Tag Library, Media Library, layout dialogs, and confirmation windows.
+* Refined Customize with fixed category navigation, native Blizzard group boxes, clearer typography, and more readable controls. Media selectors retain the existing Media Library workflow.
+* Made text templates easier to understand with descriptions, example previews, and clearer saved-layout usage information.
+* Improved search, lists, details, previews, and action placement in the Tag and Media Libraries.
+
+### Changed
+
+* Replaced editor frame and text context menus with native Blizzard menus, retaining the existing fallback. Frame actions are grouped into size, position, and alignment blocks with native dividers.
+
+### Fixed
+
+* Restored right-click context menus on selected units in Arrange mode.
+* Completed missing editor translations and localized layout activation and import-conflict messages.
+* Corrected the literal color-reset token shown in tag help.
+
 ## 3.0.4
 
 ### Improved
