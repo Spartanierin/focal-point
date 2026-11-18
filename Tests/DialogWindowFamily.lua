@@ -43,6 +43,41 @@ local function CheckHeaderDrag(window)
         {8,0,-math.max(36,window.closebutton:GetWidth()+4),-32})
     Equal({window.closebutton.points.TOPRIGHT.x,window.closebutton.points.TOPRIGHT.y},{2,1})
 end
+local function CheckLayoutForm(dialog,width,height)
+    local w=dialog.window
+    Equal({w.frame:GetWidth(),w.frame:GetHeight()},{width,height})
+    Equal({w.titletext:GetFont()},{STANDARD_TEXT_FONT,16,""})
+    Equal(w.titletext.lastSetTextColor,{1,1,1,1})
+    Equal({w.titletext.points.TOPLEFT.x,w.titletext.points.TOPLEFT.y,
+        w.titletext.points.TOPRIGHT.x,w.titletext.points.TOPRIGHT.y},{12,-15,-32,-15})
+    CheckHeaderDrag(w)
+    local background=assert(w.frame._fpModernPortraitBackground)
+    assert(background:IsShown())
+    Equal(background.lastSetColorTexture,{0,0,0,.8})
+    assert(not w.frame._fpParchmentNineSlice or not w.frame._fpParchmentNineSlice:IsShown())
+    assert(not w.frame._fpModernPortraitTopTileStreaks or not w.frame._fpModernPortraitTopTileStreaks:IsShown())
+    Equal(dialog.body.frame:GetParent()._fpCompactDialogBodyFill.lastSetColorTexture,{0,0,0,0})
+    Equal({w.content.points.TOPLEFT.x,w.content.points.TOPLEFT.y,
+        w.content.points.BOTTOMRIGHT.x,w.content.points.BOTTOMRIGHT.y},{12,-32,-12,13})
+    assert(not w.sizer_se:IsShown())
+    local actions=dialog.body.children[#dialog.body.children-1]
+    Equal(actions.LayoutFunc,ace:GetLayout("Table"))
+    local columns=actions:GetUserData("table").columns
+    assert(columns[1].weight==1 and columns[1].alignH=="left")
+    assert(columns[2].weight==1 and columns[2].alignH=="right")
+    Equal(actions.frame:GetHeight(),30)
+    Equal({dialog.primaryButton.frame:GetWidth(),dialog.cancelButton.frame:GetWidth()},{120,110})
+    -- Resolve stretch widths explicitly, as in the New Layout geometry check.
+    for _,bodyWidth in ipairs({280,width-70}) do
+        dialog.body.content:SetWidth(bodyWidth);dialog.body:DoLayout()
+        actions.content:SetWidth(actions.frame:GetWidth());actions:DoLayout()
+        local primary,cancel=dialog.primaryButton.frame,dialog.cancelButton.frame
+        assert(primary.points.LEFT.relative==actions.content and cancel.points.LEFT.relative==actions.content)
+        Equal(primary.points.LEFT.x,0)
+        Equal(cancel.points.LEFT.x+cancel:GetWidth(),actions.content:GetWidth())
+        assert(primary.points.LEFT.x+primary:GetWidth()<cancel.points.LEFT.x)
+    end
+end
 local function CheckText(root,text,role,size)
     local function Visit(widget)
         local label=widget.label
@@ -220,11 +255,11 @@ ns.LayoutMutations={
 context.selectedLayoutId="layout:one"; manager.Refresh()
 context.widgets.renameButton:Fire("OnClick")
 assert(#f.env.errors==0,table.concat(f.env.errors,"\n"))
-Check(latest,420,209); latest.nameEdit:SetText("Renamed"); latest.primaryButton:Fire("OnClick")
+CheckLayoutForm(latest,420,209); latest.nameEdit:SetText("Renamed"); latest.primaryButton:Fire("OnClick")
 Equal(calls.rename,{"layout:one","Renamed"}); Equal(latest.statusRole,"error")
 latest.cancelButton:Fire("OnClick")
 context.widgets.copyButton:Fire("OnClick")
-Check(latest,420,209); latest.nameEdit:SetText("Copy"); latest.primaryButton:Fire("OnClick")
+CheckLayoutForm(latest,420,209); latest.nameEdit:SetText("Copy"); latest.primaryButton:Fire("OnClick")
 Equal(calls.copy,{"layout:one","Copy",false}); latest.cancelButton:Fire("OnClick")
 context.activeLayoutId="layout:other"
 context.widgets.deleteButton:Fire("OnClick")
@@ -306,7 +341,7 @@ do
     Equal(LayoutRow("builtin:default").statusText:GetText(),"Selected | Active | Account default | Read-only")
     assert(context.widgets.description.label:GetText():find("Active: Default",1,true))
     assert(not context.widgets.renameButton.frame:IsShown() and context.widgets.exportButton.disabled)
-    context.widgets.copyButton:Fire("OnClick");latest.primaryButton:Fire("OnClick")
+    context.widgets.copyButton:Fire("OnClick");CheckLayoutForm(latest,420,209);latest.primaryButton:Fire("OnClick")
     assert(calls.copy[1]=="builtin:default" and calls.copy[3]==true)
     latest.cancelButton:Fire("OnClick")
     LayoutRow("layout:one"):Fire("OnClick")
@@ -453,18 +488,56 @@ ns.LayoutTransfer={Export=function(id) calls.export=id; return "payload" end,
 context.selectedLayoutId="layout:one"; manager.Refresh()
 context.widgets.exportButton:Fire("OnClick")
 assert(#f.env.errors==0,table.concat(f.env.errors,"\n"))
-Check(latest,560,375)
+CheckLayoutForm(latest,560,375)
 local transferEdit=assert(Find(latest.body,"MultiLineEditBox"))
+local function CheckTransferGeometry(dialog,edit)
+    local children=dialog.body.children
+    Equal(#children,5)
+    assert(children[2]==edit and children[1].children[1].type=="Label" and children[3].children[1].type=="Label")
+    assert(children[1].frame:GetHeight()>=children[1].children[1].frame:GetHeight()+6)
+    assert(children[3].frame:GetHeight()>=children[3].children[1].frame:GetHeight()+6)
+    Equal(children[5].frame:GetHeight(),2)
+    local height=0
+    for _,child in ipairs(children) do height=height+child.frame:GetHeight() end
+    Equal(dialog.window.frame:GetHeight(),63+height)
+    assert(edit.frame:GetHeight()>=159)
+end
+CheckTransferGeometry(latest,transferEdit)
+Equal(transferEdit.frame:GetHeight(),212)
 Equal(transferEdit:GetText(),"payload"); Equal(calls.export,"layout:one")
 latest.primaryButton:Fire("OnClick"); Equal(ace.FocusedWidget,transferEdit)
 latest.cancelButton:Fire("OnClick"); assert(latest.released); Equal(ace.FocusedWidget,nil)
-context.widgets.importButton:Fire("OnClick"); Check(latest,560,375)
+context.widgets.importButton:Fire("OnClick"); CheckLayoutForm(latest,560,375)
 transferEdit=assert(Find(latest.body,"MultiLineEditBox"))
+CheckTransferGeometry(latest,transferEdit)
+local longTransferText=string.rep("encoded-layout-payload",4000)
+transferEdit:SetText(longTransferText);transferEdit:Fire("OnTextChanged")
+Equal(transferEdit:GetText(),longTransferText)
+CheckTransferGeometry(latest,transferEdit)
 transferEdit:SetText("bad"); transferEdit:Fire("OnTextChanged")
 latest.primaryButton:Fire("OnClick"); Equal(calls.import,"bad"); Equal(latest.statusRole,"error")
+do
+    local description=latest.body.children[1].children[1]
+    local status=latest.body.children[3].children[1]
+    local descriptionHeight,statusHeight=description.label.GetStringHeight,status.label.GetStringHeight
+    description.label.GetStringHeight=function() return 60 end
+    status.label.GetStringHeight=function() return 160 end
+    latest.primaryButton:Fire("OnClick")
+    CheckTransferGeometry(latest,transferEdit)
+    Equal(transferEdit.frame:GetHeight(),159)
+    assert(latest.window.frame:GetHeight()>375)
+    description.label.GetStringHeight,status.label.GetStringHeight=descriptionHeight,statusHeight
+    transferEdit:Fire("OnTextChanged")
+    CheckTransferGeometry(latest,transferEdit)
+    Equal(latest.window.frame:GetHeight(),375)
+end
 importOK=true; latest.primaryButton:Fire("OnClick")
 Equal(latest.statusRole,"success"); Equal(transferEdit:GetText(),"")
+CheckTransferGeometry(latest,transferEdit)
 latest.cancelButton:Fire("OnClick"); assert(latest.released)
+context.widgets.exportButton:Fire("OnClick");CheckLayoutForm(latest,560,375)
+CheckTransferGeometry(latest,assert(Find(latest.body,"MultiLineEditBox")))
+latest.window:Hide();assert(latest.released)
 
 -- New Layout's real form, validation and create/cancel wiring.
 local ensureHost=Upvalue(ns.GUI.Editor.CanvasToolbar.UpdateGeometry,"EnsureHost")

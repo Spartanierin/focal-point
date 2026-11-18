@@ -674,6 +674,10 @@ local function CreateLayoutNameDialog(options)
     local bottomPadding = 6
     local dialog = FormWidgets.CreateCompactFormDialog and FormWidgets.CreateCompactFormDialog({
         title = options.title,
+        windowChrome = "editmode",
+        titleFontSize = 16,
+        titleOffsetY = -7,
+        headerDrag = { left = 8, right = 36, top = 0, height = 32 },
         width = 420,
         height = 57 + descriptionHeight + descriptionNameGap + nameHeight + nameStatusGap + statusHeight + statusActionGap + actionHeight + bottomPadding,
         bodyLayout = "List",
@@ -728,7 +732,11 @@ local function CreateLayoutNameDialog(options)
     local actionContainer = AceGUI:Create("SimpleGroup")
     actionContainer:SetFullWidth(true)
     actionContainer:SetHeight(actionHeight)
-    actionContainer:SetLayout("Flow")
+    actionContainer:SetUserData("table", {
+        columns = { { weight = 1, alignH = "left" }, { weight = 1, alignH = "right" } },
+        alignV = "middle",
+    })
+    actionContainer:SetLayout("Table")
     if actionContainer.SetAutoAdjustHeight then
         actionContainer:SetAutoAdjustHeight(false)
     end
@@ -1002,11 +1010,17 @@ local function OpenTransferDialog(export)
         end
     end
     CloseTransferDialog()
+    local contentHeight = 312
+    local descriptionGap, statusGap, actionHeight, bottomPadding = 6, 6, 30, 2
     local dialog = FormWidgets.CreateCompactFormDialog({
         title = T(export and "LAYOUT_TRANSFER_EXPORT_TITLE" or "LAYOUT_TRANSFER_IMPORT_TITLE"),
+        windowChrome = "editmode",
+        titleFontSize = 16,
+        titleOffsetY = -7,
+        headerDrag = { left = 8, right = 36, top = 0, height = 32 },
         description = T(export and "LAYOUT_TRANSFER_EXPORT_HINT" or "LAYOUT_TRANSFER_IMPORT_HINT"),
         width = 560,
-        formContentHeight = 312,
+        formContentHeight = contentHeight,
         bodyLayout = "List",
         addBodySpacer = false,
         contentRoot = true,
@@ -1016,6 +1030,12 @@ local function OpenTransferDialog(export)
     body:ReleaseChildren()
     body:SetLayout("List")
 
+    local descriptionContainer = AceGUI:Create("SimpleGroup")
+    descriptionContainer:SetLayout("List")
+    descriptionContainer:SetFullWidth(true)
+    descriptionContainer:SetAutoAdjustHeight(false)
+    descriptionContainer:SetHeight(24 + descriptionGap)
+    body:AddChild(descriptionContainer)
     local description = AceGUI:Create("Label")
     description:SetText(T(export and "LAYOUT_TRANSFER_EXPORT_HINT" or "LAYOUT_TRANSFER_IMPORT_HINT"))
     description:SetFullWidth(true)
@@ -1023,25 +1043,25 @@ local function OpenTransferDialog(export)
     if FormWidgets.ApplyTextStyle and description.label then
         FormWidgets.ApplyTextStyle(description.label, "help", 11, 1)
     end
-    body:AddChild(description)
-
-    local descriptionGap = AceGUI:Create("Label")
-    descriptionGap:SetText("")
-    descriptionGap:SetFullWidth(true)
-    descriptionGap:SetHeight(6)
-    body:AddChild(descriptionGap)
+    descriptionContainer:AddChild(description)
 
     local edit = AceGUI:Create("MultiLineEditBox")
     edit:SetLabel("")
     edit:SetNumLines(10)
     edit:SetFullWidth(true)
     edit:SetFullHeight(false)
-    edit:SetHeight(220)
     edit:DisableButton(true)
+    local minimumEditHeight = edit.frame:GetHeight() or 0
     edit:SetText(exportText or "")
     if FormWidgets.StyleEditBox then FormWidgets.StyleEditBox(edit, "editor_inset") end
     body:AddChild(edit)
 
+    local statusContainer = AceGUI:Create("SimpleGroup")
+    statusContainer:SetLayout("List")
+    statusContainer:SetFullWidth(true)
+    statusContainer:SetAutoAdjustHeight(false)
+    statusContainer:SetHeight(32 + statusGap)
+    body:AddChild(statusContainer)
     local statusTarget = AceGUI:Create("Label")
     statusTarget:SetText(" ")
     statusTarget:SetFullWidth(true)
@@ -1049,16 +1069,38 @@ local function OpenTransferDialog(export)
     if FormWidgets.ApplyTextStyle and statusTarget.label then
         FormWidgets.ApplyTextStyle(statusTarget.label, "help", 10, 1)
     end
-    body:AddChild(statusTarget)
+    statusContainer:AddChild(statusTarget)
 
     local actionContainer = AceGUI:Create("SimpleGroup")
-    actionContainer:SetLayout("Flow")
+    actionContainer:SetUserData("table", {
+        columns = { { weight = 1, alignH = "left" }, { weight = 1, alignH = "right" } },
+        alignV = "middle",
+    })
+    actionContainer:SetLayout("Table")
     actionContainer:SetFullWidth(true)
     if actionContainer.SetAutoAdjustHeight then
         actionContainer:SetAutoAdjustHeight(false)
     end
-    actionContainer:SetHeight(30)
+    actionContainer:SetHeight(actionHeight)
     body:AddChild(actionContainer)
+    local bottom = AceGUI:Create("SimpleGroup")
+    bottom:SetFullWidth(true)
+    bottom:SetAutoAdjustHeight(false)
+    bottom:SetHeight(bottomPadding)
+    body:AddChild(bottom)
+
+    local function FitTransferContent()
+        body:DoLayout()
+        local descriptionHeight = math.max(24, description.frame:GetHeight() or 0)
+        local statusHeight = math.max(32, statusTarget.frame:GetHeight() or 0)
+        descriptionContainer:SetHeight(descriptionHeight + descriptionGap)
+        statusContainer:SetHeight(statusHeight + statusGap)
+        local reservedHeight = descriptionHeight + descriptionGap + statusHeight + statusGap + actionHeight + bottomPadding
+        local availableHeight = math.max(contentHeight, reservedHeight + minimumEditHeight)
+        edit:SetHeight(availableHeight - reservedHeight)
+        dialog.window:SetHeight(57 + 6 + availableHeight)
+        body:DoLayout()
+    end
 
     local function SelectText()
         edit:SetFocus()
@@ -1084,11 +1126,13 @@ local function OpenTransferDialog(export)
                         forkApproval, approvalText = approvals, input
                         dialog.primaryButton:SetText("Import with own copies")
                         dialog:SetStatus("Built-in templates differ. Confirm import as separate user templates.", "warning", statusTarget)
+                        FitTransferContent()
                         return
                     end
                 end
                 if not ok then
                     dialog:SetStatus(TransferError(id), "error", statusTarget)
+                    FitTransferContent()
                     return
                 end
                 context.selectedLayoutId = id
@@ -1099,6 +1143,7 @@ local function OpenTransferDialog(export)
                 edit:SetText("")
                 dialog.primaryButton:SetDisabled(true)
                 dialog:SetStatus(string.format(T("LAYOUT_TRANSFER_IMPORTED"), name), "success", statusTarget)
+                FitTransferContent()
             end,
         },
         cancel = {text=T("INFO_COMMON_CLOSE", "Close"), onClick=CloseTransferDialog},
@@ -1110,6 +1155,7 @@ local function OpenTransferDialog(export)
             forkApproval, approvalText = nil, nil
             dialog.primaryButton:SetText(T("LAYOUT_TRANSFER_IMPORT"))
             dialog:SetStatus("", nil, statusTarget)
+            FitTransferContent()
             dialog.primaryButton:SetDisabled(Trim(text) == "")
         end)
     end
@@ -1126,6 +1172,7 @@ local function OpenTransferDialog(export)
     end)
     transferDialog = dialog
     dialog:Show()
+    FitTransferContent()
     if export then SelectText() else edit:SetFocus() end
 end
 
