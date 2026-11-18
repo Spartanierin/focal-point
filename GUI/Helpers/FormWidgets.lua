@@ -2911,6 +2911,20 @@ function FormWidgets.CreateCompactFormDialog(options)
             end
         end
 
+        if actions.align == "split" and #actionButtons > 1 then
+            -- Keep alignment in the layout itself: Flow would overwrite one-off anchors.
+            local columns = {}
+            for index, entry in ipairs(actionButtons) do
+                columns[index] = index == #actionButtons
+                    and { weight = 1, alignH = "right" }
+                    or { width = entry.width, alignH = index == 1 and "left" or "center" }
+            end
+            container:SetUserData("table", { columns = columns, spaceH = gap, alignV = "middle" })
+            container:SetLayout("Table")
+            container:DoLayout()
+            return
+        end
+
         if container.DoLayout then
             container:DoLayout()
         end
@@ -2957,6 +2971,7 @@ end
 
 function FormWidgets.CreateCompactConfirmation(options)
     options = options or {}
+    local useEditMode = options.windowChrome == "editmode"
 
     local messageHeight = options.messageHeight or 44
     local hintHeight = type(options.hint) == "string" and options.hint ~= "" and (options.hintHeight or 16) or 0
@@ -2968,6 +2983,10 @@ function FormWidgets.CreateCompactConfirmation(options)
     local bottomPadding = options.bottomPadding or 6
     local dialog = FormWidgets.CreateCompactFormDialog({
         title = options.title or "",
+        windowChrome = options.windowChrome,
+        titleFontSize = options.titleFontSize,
+        titleOffsetY = options.titleOffsetY,
+        headerDrag = options.headerDrag,
         width = options.width or 420,
         height = 57 + messageHeight + messageHintGap + hintHeight + messageStatusGap + statusHeight + statusActionGap + actionHeight + bottomPadding,
         bodyLayout = "List",
@@ -2979,8 +2998,8 @@ function FormWidgets.CreateCompactConfirmation(options)
     end
 
     local function AddSpacer(height)
-        local spacer = AceGUI:Create("Label")
-        spacer:SetText("")
+        local spacer = AceGUI:Create(useEditMode and "SimpleGroup" or "Label")
+        if useEditMode then spacer:SetAutoAdjustHeight(false) else spacer:SetText("") end
         spacer:SetFullWidth(true)
         spacer:SetHeight(height)
         dialog.body:AddChild(spacer)
@@ -3024,9 +3043,30 @@ function FormWidgets.CreateCompactConfirmation(options)
 
     dialog.confirmationStatus = status
     dialog:SetActions({
+        align = options.windowChrome == "editmode" and "split" or nil,
         primary = options.primary,
         cancel = options.cancel,
     }, actionContainer)
+
+    if useEditMode then
+        -- Same local measured-height contract as New Layout: Window 57 + body top 6.
+        local function FitDialogHeight()
+            dialog.body:DoLayout()
+            local height = 0
+            for _, child in ipairs(dialog.body.children) do height = height + child.frame:GetHeight() end
+            dialog.window:SetHeight(57 + 6 + height)
+        end
+        local setStatus, show = dialog.SetStatus, dialog.Show
+        function dialog:SetStatus(messageText, role, target)
+            setStatus(self, messageText, role, target)
+            FitDialogHeight()
+        end
+        function dialog:Show()
+            show(self)
+            FitDialogHeight()
+        end
+        FitDialogHeight()
+    end
 
     return dialog
 end

@@ -1131,6 +1131,9 @@ local function OpenManagerRename(context, entry)
     local capture = r.Capture(session)
     local dialog = FormWidgets.CreateCompactFormDialog({
         title = T("INFO_TEXT_MANAGER_RENAME", "Rename"), width = 420, height = 210,
+        windowChrome = "editmode",
+        titleFontSize = 16, titleOffsetY = -7,
+        headerDrag = { left = 8, right = 36, top = 0, height = 32 },
         bodyLayout = "List", contentRoot = true,
     })
     managerRenameDialog, context.renameDialog = dialog, dialog
@@ -1144,6 +1147,7 @@ local function OpenManagerRename(context, entry)
     local actions = ManagerGroup(dialog.body, 30, "Flow")
     context.renameEdit, context.renameStatus = edit, status
     dialog:SetActions({
+        align = "split",
         primary = {text = T("INFO_TEXT_MANAGER_RENAME", "Rename"), role = "primary_action", width = 110,
             onClick = function()
                 if dialog.released then return end
@@ -1171,6 +1175,12 @@ local function OpenManagerRename(context, entry)
         cancel = {text = T("INFO_COMMON_CANCEL", "Cancel"), width = 100,
             onClick = function() dialog:Close() end},
     }, actions)
+    -- Rename shares the split footer; fit its existing slots with the same bottom gap.
+    ManagerGroup(dialog.body, 6)
+    dialog.body:DoLayout()
+    local contentHeight = 0
+    for _, child in ipairs(dialog.body.children) do contentHeight = contentHeight + child.frame:GetHeight() end
+    dialog.window:SetHeight(57 + 6 + contentHeight)
     BindManagerDialogClose(context, dialog, "rename")
     dialog:Show()
     edit:SetFocus()
@@ -1193,6 +1203,9 @@ local function OpenManagerDelete(context, entry)
     if not session then return end
     local capture = r.Capture(session)
     local dialog = FormWidgets.CreateCompactConfirmation({
+        windowChrome = "editmode",
+        titleFontSize = 16, titleOffsetY = -7,
+        headerDrag = { left = 8, right = 36, top = 0, height = 32 },
         title = T("INFO_TEXT_MANAGER_DELETE", "Delete"),
         message = string.format(T("INFO_TEXT_MANAGER_DELETE_PROMPT", 'Delete the template "%s"?'), entry.templateName),
         primary = {text = T("INFO_TEXT_MANAGER_DELETE", "Delete"), role = "danger", width = 100},

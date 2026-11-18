@@ -32,8 +32,37 @@ local function Find(root,kind,text)
     for _,child in ipairs(root.children or {}) do local found=Find(child,kind,text); if found then return found end end
 end
 local function Check(dialog,width,height)
-    f.Check(dialog)
-    Equal({dialog.window.frame:GetWidth(),dialog.window.frame:GetHeight()},{width,height})
+    local window=dialog.window
+    Equal({window.frame:GetWidth(),window.frame:GetHeight()},{width,height})
+    Equal({window.titletext:GetFont()},{STANDARD_TEXT_FONT,16,""})
+    Equal(window.titletext.lastSetTextColor,{1,1,1,1})
+    Equal({window.titletext.points.TOPLEFT.y,window.titletext.points.TOPRIGHT.y},{-15,-15})
+    Equal(window.frame._fpModernPortraitBackground.lastSetColorTexture,{0,0,0,.8})
+    assert(not window.frame._fpParchmentNineSlice or not window.frame._fpParchmentNineSlice:IsShown())
+    Equal({window.title.points.TOPLEFT.x,window.title.points.TOPLEFT.y,
+        window.title.points.BOTTOMRIGHT.x,window.title.points.BOTTOMRIGHT.y},
+        {8,0,-math.max(36,window.closebutton:GetWidth()+4),-32})
+    if dialog.primaryButton and dialog.cancelButton then
+        local actions=dialog.primaryButton.parent
+        Equal(actions,dialog.cancelButton.parent)
+        Equal(actions.LayoutFunc,ace:GetLayout("Table"))
+        dialog.body.content:SetWidth(width-70); dialog.body:DoLayout()
+        actions.content:SetWidth(actions.frame:GetWidth()); actions:DoLayout()
+        for _=1,3 do
+            dialog.body:DoLayout(); actions:DoLayout()
+            local primary,cancel=dialog.primaryButton.frame,dialog.cancelButton.frame
+            assert(primary.points.LEFT.relative==actions.content and cancel.points.LEFT.relative==actions.content)
+            Equal(primary.points.LEFT.x,0)
+            Equal(cancel.points.LEFT.x+cancel:GetWidth(),actions.content:GetWidth())
+        end
+        local total=0
+        for _,child in ipairs(dialog.body.children) do total=total+child.frame:GetHeight() end
+        Equal(window.frame:GetHeight(),57+6+total)
+        Equal(dialog.body.children[#dialog.body.children].frame:GetHeight(),6)
+        Equal(actions.frame:GetHeight(),30)
+        assert(actions.frame.points.TOPLEFT.relative==dialog.body.children[#dialog.body.children-2].frame)
+        Equal(actions.frame.points.TOPLEFT.relativePoint,"BOTTOMLEFT")
+    end
 end
 local function CheckHeaderDrag(window)
     local points=window.title.points
@@ -43,6 +72,46 @@ local function CheckHeaderDrag(window)
         {8,0,-math.max(36,window.closebutton:GetWidth()+4),-32})
     Equal({window.closebutton.points.TOPRIGHT.x,window.closebutton.points.TOPRIGHT.y},{2,1})
 end
+local function CheckUnsaved(context)
+    local window,root=context.window,context.groups.Root
+    local buttons={context.saveCloseButton,context.discardCloseButton,context.cancelButton}
+    local actions=buttons[1].parent
+    Equal(actions,context.groups.ActionRow)
+    Equal(actions.LayoutFunc,ace:GetLayout("Table"));Equal(#actions.children,3)
+    local required=24
+    for i,button in ipairs(buttons) do
+        Equal(actions.children[i],button)
+        Equal(button.frame:GetWidth(),button.text:GetStringWidth()+30)
+        required=required+button.frame:GetWidth()
+    end
+    local padding=root._fpSectionPadding
+    Equal(padding,{left=16,right=16,top=6,bottom=6})
+    local inset=window.frame:GetWidth()-window.content:GetWidth()
+    Equal(window.frame:GetWidth(),math.max(560,required+32+inset))
+    -- The native double does not resolve stretched frame anchors automatically.
+    actions.content:SetWidth(window.content:GetWidth()-padding.left-padding.right)
+    actions:DoLayout()
+    Equal(buttons[1].frame.points.LEFT.x,0)
+    Equal(buttons[2].frame.points.LEFT.x,buttons[1].frame:GetWidth()+12)
+    Equal(buttons[3].frame.points.LEFT.x+buttons[3].frame:GetWidth(),actions.content:GetWidth())
+    assert(buttons[3].frame.points.LEFT.x>=buttons[2].frame.points.LEFT.x+buttons[2].frame:GetWidth()+12)
+    Equal(actions.frame:GetHeight(),30)
+    local height=padding.top+padding.bottom
+    for _,child in ipairs(root.children) do height=height+child.frame:GetHeight() end
+    Equal(window.frame:GetHeight(),57+height)
+    Equal(root.children[2].frame:GetHeight(),12)
+    for _,group in ipairs({root,context.groups.Message,actions}) do
+        for _,edge in ipairs({"Top","Bottom","Left","Right"}) do
+            local border=group.frame["_fpSectionBorder"..edge]
+            assert(not border or not border:IsShown(),"Unsaved section border remains visible: "..edge)
+        end
+        assert(not group.frame._fpSectionFill or not group.frame._fpSectionFill:IsShown())
+    end
+    Equal({window.titletext:GetFont()},{STANDARD_TEXT_FONT,16,""})
+    Equal(window.titletext.lastSetTextColor,{1,1,1,1})
+    CheckHeaderDrag(window)
+end
+
 local function CheckLayoutForm(dialog,width,height)
     local w=dialog.window
     Equal({w.frame:GetWidth(),w.frame:GetHeight()},{width,height})
@@ -263,7 +332,7 @@ CheckLayoutForm(latest,420,209); latest.nameEdit:SetText("Copy"); latest.primary
 Equal(calls.copy,{"layout:one","Copy",false}); latest.cancelButton:Fire("OnClick")
 context.activeLayoutId="layout:other"
 context.widgets.deleteButton:Fire("OnClick")
-Check(latest,430,173); latest.primaryButton:Fire("OnClick"); Equal(calls.delete,"layout:one")
+Check(latest,430,139); latest.primaryButton:Fire("OnClick"); Equal(calls.delete,"layout:one")
 Equal(latest.statusRole,"error"); latest.cancelButton:Fire("OnClick")
 
 -- C1: one contextual global-default action; selecting a row does not activate it.
@@ -956,7 +1025,7 @@ ns.ActiveLayoutResolver={GetStoredActiveLayoutId=function() return "builtin:defa
 Load("GUI/Editor/LayoutEditWorkflow.lua")
 local ready=0
 ns.LayoutEditWorkflow.RequestEditableLayoutForMutation(function() ready=ready+1 end)
-Check(latest,440,185); latest.cancelButton:Fire("OnClick"); Equal(ready,0)
+Check(latest,440,139); latest.cancelButton:Fire("OnClick"); Equal(ready,0)
 ns.LayoutMutations.CreateUserLayoutFromSource=function() return true,"layout:new" end
 ns.LayoutEditWorkflow.RequestEditableLayoutForMutation(function() ready=ready+1 end)
 latest.primaryButton:Fire("OnClick"); Equal(ready,1)
@@ -981,10 +1050,10 @@ local common={ns=ns,L={},FormWidgets=forms,InspectorMutations={DeleteTextInstanc
     IsSelectedTextObject=function() return true end,RequestEditableMutation=function(fn) return fn() end,
     NotifyCompositionTreeChanged=Noop,SelectUnitRootAfterTextDelete=Noop,NotifySidebarChanged=Noop,
     selectedDecorationId="decoration1",DeleteDecoration=Delete}
-for _,spec in ipairs({{"OpenDeleteTextInstanceConfirmDialog",173},{"OpenDeleteDecorationConfirmDialog",165}}) do
+for _,spec in ipairs({{"OpenDeleteTextInstanceConfirmDialog",157},{"OpenDeleteDecorationConfirmDialog",139}}) do
     local open=InspectorConfirmation(spec[1],common)
     mutationOK=false; open("player","test"); Check(latest,420,spec[2])
-    if spec[2]==173 then CheckText(latest.body,"The text template is not deleted.","help",11) end
+    if spec[2]==157 then CheckText(latest.body,"The text template is not deleted.","help",11) end
     local before=deletes; latest.primaryButton:Fire("OnClick"); Equal(deletes,before+1)
     Equal(latest.statusRole,"error"); assert(latest.window.frame:IsShown())
     latest.cancelButton:Fire("OnClick"); Equal(deletes,before+1)
@@ -1147,6 +1216,16 @@ ns.db,ns.TextTemplateMutations=oldDb,oldMutations
 ns.RefreshUnitFrame,ns.GUI.RequestRefreshOptions=oldRefresh,oldRequest
 ns.GUI.Editor.ObjectSelection=oldSelection
 
+-- The new confirmation presentation is explicit; the default remains unchanged.
+do
+    local ordinary=forms.CreateCompactConfirmation({title="Default",message="Unchanged",
+        primary={text="Confirm"},cancel={text="Cancel"}})
+    f.Check(ordinary)
+    assert(ordinary.primaryButton.frame.points.LEFT.x>0)
+    assert(not ordinary.cancelButton.frame.points.RIGHT)
+    ace:Release(ordinary.window)
+end
+
 -- Direct utility chrome has no dependency on a Compact shell or its children.
 Load("Data/Constants.lua")
 ns.KeyMap=ns.KeyMap or {}
@@ -1170,11 +1249,28 @@ for _,spec in ipairs({{"DeleteConfirm",420,210},{"UnsavedApplyConfirm",560,230},
     local definition=ns.GUI.Layouts.TextBuilder[spec[1]]
     local opts={title=spec[1],windowWidth=spec[2],windowHeight=spec[3],state={message="Fixture message"}}
     local ctx=openUtility(nil,definition,opts)
+    if spec[1]=="UnsavedCloseConfirm" then
+        -- This fixture has no locale prompt initially; reuse applies its explicit state text.
+        Equal(ctx.window.frame:GetHeight(),112)
+        Equal(openUtility(ctx,definition,opts),ctx)
+    end
     assert(ctx.groups.Message and ctx.widgets.message and ctx.cancelButton)
-    assert(ctx.groups.Message.frame._fpSectionFill)
-    assert(ctx.window.frame._fpParchmentNineSlice:IsShown())
+    if spec[1]=="UnsavedCloseConfirm" then
+        assert(not ctx.groups.Message.frame._fpSectionFill or not ctx.groups.Message.frame._fpSectionFill:IsShown())
+        assert(not ctx.window.frame._fpParchmentNineSlice or not ctx.window.frame._fpParchmentNineSlice:IsShown())
+        Equal({ctx.window.titletext:GetFont()},{STANDARD_TEXT_FONT,16,""})
+        Equal(ctx.window.frame._fpModernPortraitBackground.lastSetColorTexture,{0,0,0,.8})
+        assert(not ctx.widgets.title) -- the window title already identifies the decision
+        CheckUnsaved(ctx)
+        Equal(ctx.window.frame:GetHeight(),125)
+    else
+        assert(ctx.groups.Message.frame._fpSectionFill)
+        assert(ctx.window.frame._fpParchmentNineSlice:IsShown())
+    end
     Equal(ctx.window.frame._fpCompactFormShell,nil)
-    Equal({ctx.window.frame:GetWidth(),ctx.window.frame:GetHeight()},{spec[2],spec[3]})
+    if spec[1]~="UnsavedCloseConfirm" then
+        Equal({ctx.window.frame:GetWidth(),ctx.window.frame:GetHeight()},{spec[2],spec[3]})
+    end
     local bounds=f.Geometry(ctx.window); local children=#ctx.window.children; local count=f.Count()
     for _=1,10 do
         ctx.window.frame:Run("OnKeyDown","ESCAPE"); assert(not ctx.window.frame:IsShown())
@@ -1184,6 +1280,40 @@ for _,spec in ipairs({{"DeleteConfirm",420,210},{"UnsavedApplyConfirm",560,230},
     Equal(f.Count(),count)
     ctx.window:Fire("OnClose"); ace:Release(ctx.window)
 end
+
+-- Real Unsaved layout in both locales: native label auto-width, wrapping and retained-window fit.
+for _,values in ipairs({
+    {"Unsaved Changes","This template has unsaved changes.\nDo you want to save them before closing?","Save & Close","Close Without Saving","Cancel"},
+    {"Ungespeicherte ?nderungen","Diese Textvorlage enth?lt ungespeicherte ?nderungen.\nM?chtest du sie vor dem Schlie?en speichern?","Speichern & Schlie?en","Ohne Speichern schlie?en","Abbrechen"},
+}) do
+    local keys={"INFO_TEXT_BUILDER_UNSAVED_CLOSE_TITLE","INFO_TEXT_BUILDER_UNSAVED_CLOSE_PROMPT",
+        "INFO_TEXT_BUILDER_UNSAVED_SAVE_CLOSE","INFO_TEXT_BUILDER_UNSAVED_DISCARD_CLOSE","INFO_COMMON_CANCEL"}
+    local saved={}
+    for i,key in ipairs(keys)do saved[i]=ns.L[key];ns.L[key]=values[i] end
+    local definition=ns.GUI.Layouts.TextBuilder.UnsavedCloseConfirm
+    local opts={title=values[1],windowWidth=560,windowHeight=230,state={message=values[2]}}
+    local ctx=openUtility(nil,definition,opts)
+    Equal(ctx.saveCloseButton.text:GetText(),values[3]);Equal(ctx.discardCloseButton.text:GetText(),values[4])
+    Equal(ctx.cancelButton.text:GetText(),values[5]);Equal(ctx.widgets.message.label:GetText(),values[2])
+    CheckUnsaved(ctx)
+    local message=ctx.widgets.message.label
+    message.GetStringHeight=function()return 28 end -- two measured lines
+    Equal(openUtility(ctx,definition,opts),ctx);CheckUnsaved(ctx);Equal(ctx.window.frame:GetHeight(),139)
+    local shortWidth=ctx.window.frame:GetWidth()
+    for cycle=1,20 do
+        local long=cycle%2==0
+        message.GetStringHeight=function()return long and 84 or 28 end
+        opts.state.message=long and string.rep(values[2],3) or values[2]
+        Equal(openUtility(ctx,definition,opts),ctx);CheckUnsaved(ctx)
+        Equal(ctx.window.frame:GetHeight(),long and 195 or 139);Equal(ctx.window.frame:GetWidth(),shortWidth)
+        ctx.window.frame:Run("OnKeyDown","ENTER");assert(ctx.window.frame:IsShown())
+        ctx.window.frame:Run("OnKeyDown","ESCAPE");assert(not ctx.window.frame:IsShown())
+    end
+    message.GetStringHeight=nil
+    ace:Release(ctx.window)
+    for i,key in ipairs(keys)do ns.L[key]=saved[i] end
+end
+print("PASS: Unsaved auto-sized EN/DE captions, unframed measured text, three stable footer slots and 20 short/long reopen cycles per locale")
 
 -- Existing utility action wiring; fake only persistence/apply boundaries.
 local function Replace(fn,name,value)
@@ -1221,6 +1351,11 @@ for _,button in ipairs({"saveCloseButton","discardCloseButton","cancelButton"}) 
     BeginDialogDraft()
     parent.window:Show(); openClose(parent)
     local close=Upvalue(openClose,"unsavedCloseDialogContext")
+    Equal({close.window.titletext:GetFont()},{STANDARD_TEXT_FONT,16,""})
+    Equal(close.window.frame._fpModernPortraitBackground.lastSetColorTexture,{0,0,0,.8})
+    assert(not close.window.frame._fpParchmentNineSlice or not close.window.frame._fpParchmentNineSlice:IsShown())
+    assert(close.widgets.saveCloseButton.parent==close.widgets.cancelButton.parent)
+    CheckUnsaved(close)
     close[button]:Fire("OnClick")
     Equal(parent.window.frame:IsShown(),button=="cancelButton")
     assert(not close.window.frame:IsShown())
@@ -1276,6 +1411,64 @@ for cycle=1,20 do
     end
     if cycle==1 then pooledCount=f.Count() else Equal(f.Count(),pooledCount) end
 end
+-- Simulated wrapped native metrics exercise local fitting, not guessed atlas dimensions.
+for _,text in ipairs({
+    {title="Remove Component?",message=string.rep("Remove the selected component from this unit frame? ",4),hint="The template is retained."},
+    {title="Komponente entfernen?",message=string.rep("Die ausgew?hlte Komponente aus diesem Einheitenfenster entfernen? ",4),hint="Die Vorlage bleibt erhalten."},
+}) do
+    local confirmed,cancelled=0,0
+    local dialog=forms.CreateCompactConfirmation({title=text.title,message=text.message,hint=text.hint,
+        windowChrome="editmode",titleFontSize=16,titleOffsetY=-7,headerDrag={left=8,right=36,top=0,height=32},
+        primary={text="Remove",role="danger",width=210,onClick=function() confirmed=confirmed+1 end},
+        cancel={text="Cancel",width=110,onClick=function(owner)cancelled=cancelled+1;owner:Close()end}})
+    local message=assert(Find(dialog.body,"Label",text.message))
+    local hint=assert(Find(dialog.body,"Label",text.hint))
+    message.label.GetStringHeight=function()return 56 end
+    hint.label.GetStringHeight=function()return 28 end
+    dialog.confirmationStatus.label.GetStringHeight=function(owner)return owner:GetText()==" " and 14 or 42 end
+    dialog:Show();Check(dialog,420,213)
+    dialog:SetStatus("A multi-line failure remains visible.","error",dialog.confirmationStatus)
+    Check(dialog,420,241)
+    dialog:SetStatus("",nil,dialog.confirmationStatus);Check(dialog,420,213)
+    for _=1,20 do
+        dialog:Show();dialog.body:DoLayout();Check(dialog,420,213)
+        dialog.window.frame:Run("OnKeyDown","ENTER");Equal(confirmed,0)
+        dialog.window.frame:Run("OnKeyDown","ESCAPE");assert(not dialog.window.frame:IsShown())
+    end
+    dialog:Show();dialog.cancelButton:Fire("OnClick");Equal(cancelled,1);Equal(confirmed,0)
+    dialog:Show();dialog.window.closebutton:Run("OnClick");Equal(confirmed,0)
+    dialog:Show();dialog.primaryButton:Fire("OnClick");Equal(confirmed,1)
+    -- Font metrics belong to this test case, never the next pooled Label owner.
+    message.label.GetStringHeight=nil;hint.label.GetStringHeight=nil
+    dialog.confirmationStatus.label.GetStringHeight=nil
+    ace:Release(dialog.window)
+end
+print("PASS: confirmation Table footer survives reflow; measured EN/DE content/status, 20 reopen cycles, Cancel/X/Escape and no Enter confirmation")
+-- Real component-removal handler, with only mutation/refresh boundaries supplied.
+do
+    local file=assert(io.open("GUI/Editor/CanvasToolbar.lua"));local source=file:read("*a");file:close()
+    local first=assert(source:find("local function OpenComponentRemove(request)",1,true))
+    local last=assert(source:find("function CanvasToolbar.OpenComponentCatalog",first,true))
+    local removed=0
+    local fixtureNS={InspectorMutations={CanRemoveObject=function()return true end,
+        RemoveObject=function(_,ref)removed=removed+1;Equal(ref.unit,"player");return {ok=true,changed=true}end},
+        LayoutMutations={},LayoutEditWorkflow={RequestEditableLayoutForMutation=function(fn)fn()end},
+        GUI={Editor={ObjectSelection={GetSelectedObject=function()end},Composition={},Controller={
+            RefreshCompositionTree=function()end,RefreshActiveProperties=function()end,GetActiveInspectorHost=function()end}}}}
+    local open=assert(load(source:sub(first,last-1).."\nreturn OpenComponentRemove","@Canvas/ComponentConfirmation","t",
+        setmetatable({ns=fixtureNS,FormWidgets=forms,T=function(_,fallback)return fallback end,
+            BuildDecorationMutationContext=function()return {}end,RequestEditorRefresh=function()end},{__index=_G})))()
+    local current=true
+    local request={parentRef={unit="player",kind="health"},displayName="Health",isCurrent=function()return current end}
+    open(request);local cancelled=latest;Check(cancelled,420,139)
+    cancelled.cancelButton:Fire("OnClick");Equal(removed,0)
+    cancelled.primaryButton:Fire("OnClick");Equal(removed,0);ace:Release(cancelled.window)
+    open(request);local stale=latest;current=false
+    stale.primaryButton:Fire("OnClick");Equal(removed,0);assert(not stale.window.frame:IsShown());ace:Release(stale.window)
+    current=true;open(request);local confirmed=latest;Check(confirmed,420,139)
+    confirmed.primaryButton:Fire("OnClick");Equal(removed,1);assert(not confirmed.window.frame:IsShown());ace:Release(confirmed.window)
+end
+print("PASS: real component confirmation Cancel/stale guard, explicit Remove and shared measured Table footer")
 forms.CreateCompactFormDialog=create
 assert(#f.env.errors==0,table.concat(f.env.errors,"\n"))
 print("PASS: Dialog family, Options, Layout/Transfer workflows, Assignments, all confirmations, both pickers, three direct utilities/actions, neutral/Modern transitions, 50 reapply and 60 pooling cycles")

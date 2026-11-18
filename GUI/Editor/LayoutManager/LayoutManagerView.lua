@@ -634,6 +634,9 @@ end
 
 local function CreateDeleteConfirmDialog(item)
     local dialog = FormWidgets.CreateCompactConfirmation({
+        windowChrome = "editmode",
+        titleFontSize = 16, titleOffsetY = -7,
+        headerDrag = { left = 8, right = 36, top = 0, height = 32 },
         title = T("LAYOUT_DELETE_TITLE", "Delete Layout?"),
         message = string.format(T("LAYOUT_DELETE_MESSAGE", "This permanently deletes \"%s\".\nThis cannot be undone."), item and item.name or ""),
         width = 430,

@@ -61,6 +61,9 @@ function Workflow.RequestEditableLayoutForMutation(onReady, options)
     end
 
     dialog = FormWidgets.CreateCompactConfirmation({
+        windowChrome = "editmode",
+        titleFontSize = 16, titleOffsetY = -7,
+        headerDrag = { left = 8, right = 36, top = 0, height = 32 },
         title = T("LAYOUT_EDIT_CONFIRM_TITLE", "Create Editable Layout?"),
         message = string.format(T("LAYOUT_EDIT_CONFIRM_MESSAGE", "\"%s\" is a read-only template. Create a personal editable layout from it?"), displayName),
         width = 440,

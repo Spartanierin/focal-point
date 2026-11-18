@@ -375,10 +375,32 @@ local rename, edit, status=manager.renameDialog,manager.renameEdit,manager.renam
 assert(rename.window.frame:IsShown() and edit.frame:IsShown() and Contains(rename.body,edit))
 assert(Contains(rename.body,status) and edit.parent==rename.body)
 assert(rename.primaryButton.parent~=rename.body)
+assert(select(2,rename.window.titletext:GetFont())==16)
+assert(rename.window.frame._fpModernPortraitBackground:IsShown())
+local renameActions=rename.primaryButton.parent
+assert(renameActions.LayoutFunc==f.ace:GetLayout("Table"))
+-- Resolve the native double's stretched content as in DialogWindowFamily.
+rename.body.content:SetWidth(rename.window.frame:GetWidth()-70)
+for _=1,3 do
+    rename.body:DoLayout()
+    renameActions.content:SetWidth(renameActions.frame:GetWidth());renameActions:DoLayout()
+    assert(rename.primaryButton.frame.points.LEFT.x==0)
+    local cancel=rename.cancelButton.frame
+    assert(cancel.points.LEFT.relative==renameActions.content)
+    assert(cancel.points.LEFT.x+cancel:GetWidth()==renameActions.content:GetWidth())
+end
+local renameHeight=0
+for _,child in ipairs(rename.body.children) do renameHeight=renameHeight+child.frame:GetHeight() end
+assert(rename.window.frame:GetHeight()==57+6+renameHeight)
+assert(rename.window.frame:GetHeight()==185)
+assert(rename.window.title.points.BOTTOMRIGHT.y==-32)
 Input(edit,"   "); Click(rename.primaryButton)
 assert(not rename.released and status.label:GetText()~=" " and status.label:GetText()~="")
 assert(ns.db.global.TextTemplates[createdId].name=="Manager Created")
-Input(edit,"Manager Renamed"); Click(rename.primaryButton)
+Input(edit,"Manager Renamed")
+edit:Fire("OnEnterPressed",edit:GetText()) -- unchanged: this dialog has no Enter submit callback
+assert(not rename.released and ns.db.global.TextTemplates[createdId].name=="Manager Created")
+Click(rename.primaryButton)
 assert(rename.released and not manager.renameDialog and not manager.renameEdit)
 assert(manager.selectedTemplateId==createdId and ns.db.global.TextTemplates[createdId].name=="Manager Renamed")
 Click(manager.actionButtons.rename)
@@ -390,13 +412,13 @@ Click(rename.cancelButton); staleRename(); NoErrors()
 assert(rename.released and manager.selectedTemplateId==createdId)
 assert(ns.db.global.TextTemplates[createdId].name=="Manager Renamed")
 Click(manager.actionButtons.rename); rename=manager.renameDialog
-rename:Close(); NoErrors(); assert(rename.released)
+rename.window.frame:Run("OnKeyDown","ESCAPE"); NoErrors(); assert(rename.released)
 Click(manager.actionButtons.rename); rename=manager.renameDialog
 Input(manager.renameEdit,"Stale rename")
 ns.db.char.activeLayoutId="layout:b"
 Click(rename.primaryButton)
 assert(ns.db.global.TextTemplates[createdId].name=="Manager Renamed")
-rename:Close(); ns.db.char.activeLayoutId="layout:a"
+rename.window.closebutton:Run("OnClick"); assert(rename.released); ns.db.char.activeLayoutId="layout:a"
 print("PASS: Rename live dialog children, visible validation, save/cancel/reopen and stale layout guard")
 
 -- Duplicate uses Copy: both source types produce new IDs without binding edits.

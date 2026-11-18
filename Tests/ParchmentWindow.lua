@@ -31,6 +31,9 @@ function native:CreateTexture(name, layer, template, sublevel)
     region:SetDrawLayer(layer or "ARTWORK", sublevel or 0); return region
 end
 function native:GetRegions() return table.unpack(self.regions or {}) end
+function native:GetJustifyH() return self.lastSetJustifyH and self.lastSetJustifyH[1] or "CENTER" end
+function native:GetShadowOffset() return table.unpack(self.lastSetShadowOffset or {1,-1}) end
+function native:GetShadowColor() return table.unpack(self.lastSetShadowColor or {0,0,0,1}) end
 function native:GetDrawLayer() return table.unpack(self.lastSetDrawLayer or {"ARTWORK",0}) end
 function native:GetVertexColor() return table.unpack(self.lastSetVertexColor or {1,1,1,1}) end
 function native:GetTextColor() return table.unpack(self.lastSetTextColor or {1,1,1,1}) end

@@ -1454,6 +1454,9 @@ function InspectorController.Build(container, state, options)
 
         CloseDeleteTextInstanceDialog()
         local dialog = FormWidgets.CreateCompactConfirmation({
+            windowChrome = "editmode",
+            titleFontSize = 16, titleOffsetY = -7,
+            headerDrag = { left = 8, right = 36, top = 0, height = 32 },
             title = L["EDITOR_DELETE_TEXT_CONFIRM_TITLE"] or "Delete Text?",
             message = L["EDITOR_DELETE_TEXT_CONFIRM_DESCRIPTION"] or "This permanently removes this text from the selected unit.",
             hint = L["EDITOR_DELETE_TEXT_CONFIRM_TEMPLATE_NOTE"] or "The text template is not deleted.",
@@ -3210,6 +3213,9 @@ function InspectorController.Build(container, state, options)
                 CloseDeleteSegmentedBarDialog()
                 local deleteContext = context
                 local dialog = FormWidgets.CreateCompactConfirmation({
+                    windowChrome = "editmode",
+                    titleFontSize = 16, titleOffsetY = -7,
+                    headerDrag = { left = 8, right = 36, top = 0, height = 32 },
                     title = L["EDITOR_DELETE_SEGMENTED_BAR_CONFIRM_TITLE"] or "Delete Class Resource Bar?",
                     message = L["EDITOR_DELETE_SEGMENTED_BAR_CONFIRM_DESCRIPTION"] or "This removes the selected segmented bar from this unit frame.",
                     primary = {
@@ -6051,6 +6057,9 @@ function InspectorController.Build(container, state, options)
 
             CloseDeleteDecorationDialog()
             local dialog = FormWidgets.CreateCompactConfirmation({
+                windowChrome = "editmode",
+                titleFontSize = 16, titleOffsetY = -7,
+                headerDrag = { left = 8, right = 36, top = 0, height = 32 },
                 title = L["EDITOR_DELETE_DECORATION_CONFIRM_TITLE"] or "Delete Decoration?",
                 message = L["EDITOR_DELETE_DECORATION_CONFIRM_DESCRIPTION"] or "This removes the selected decoration from this unit frame.",
                 primary = {

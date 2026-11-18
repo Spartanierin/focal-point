@@ -514,7 +514,8 @@ local function Closure(fn,name,seen)
     for _,child in ipairs(children) do local value=Closure(child,name,seen); if value then return value end end
 end
 local closeContext=assert(Closure(builder.HideWindow,"unsavedCloseDialogContext"))
-assert(closeContext.window.frame._fpParchmentNineSlice:IsShown())
+CheckDirect(closeContext.window,560,125)
+assert(not closeContext.window.frame._fpParchmentNineSlice or not closeContext.window.frame._fpParchmentNineSlice:IsShown())
 assert(not closeContext.window.frame._fpToolChromeActive)
 closeContext.cancelButton:Fire("OnClick"); assert(builderContext.window.frame:IsShown())
 builder.HideWindow(); closeContext.discardCloseButton:Fire("OnClick"); assert(not builderContext.window.frame:IsShown())

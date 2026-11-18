@@ -940,15 +940,57 @@ end
 
 local function OpenTextBuilderLayoutDialog(existingContext, layoutDefinition, options)
     options = options or {}
+    local function ApplyDialogChrome(window)
+        if layoutDefinition == TextBuilderLayouts.UnsavedCloseConfirm then
+            FormWidgets.ApplyModernWindowChrome(window, {
+                windowChrome = "editmode", titleFontSize = 16, titleOffsetY = -7,
+                headerDrag = { left = 8, right = 36, top = 0, height = 32 },
+            })
+        else
+            ApplyWindowChrome(window, { focalPointDialog = true })
+        end
+    end
+
+    local function ComposeUnsavedClose(context)
+        if layoutDefinition ~= TextBuilderLayouts.UnsavedCloseConfirm then return end
+        local window, root = context.window, context.groups.Root
+        local actions = context.saveCloseButton.parent
+        local buttons = { context.saveCloseButton, context.discardCloseButton, context.cancelButton }
+        local widths, required = {}, 24 -- two existing 12-unit column gaps
+        for index, button in ipairs(buttons) do
+            button:SetFullWidth(false)
+            button.frame:ClearAllPoints()
+            -- AceGUI measures the complete label and adds its native 15+15 text insets.
+            button:SetAutoWidth(true)
+            widths[index] = button.frame:GetWidth()
+            required = required + widths[index]
+        end
+        local padding = root._fpSectionPadding
+        local windowInset = window.frame:GetWidth() - window.content:GetWidth()
+        window:SetWidth(math.max(options.windowWidth or 560,
+            required + padding.left + padding.right + windowInset))
+        actions:SetUserData("table", {
+            columns = {{width = widths[1], alignH = "left"},
+                {width = widths[2], alignH = "center"}, {weight = 1, alignH = "right"}},
+            spaceH = 12, alignV = "middle",
+        })
+        window:DoLayout()
+        root:DoLayout()
+        local height = padding.top + padding.bottom
+        for _, child in ipairs(root.children) do height = height + child.frame:GetHeight() end
+        local windowInsetY = window.frame:GetHeight() - window.content:GetHeight()
+        window:SetHeight(windowInsetY + height)
+    end
 
     if existingContext and existingContext.window and existingContext.window.frame then
         existingContext.window:SetTitle(options.title or "")
         existingContext.window:SetWidth(options.windowWidth or 420)
         existingContext.window:SetHeight(options.windowHeight or 210)
         existingContext.window:SetCallback("OnClose", nil)
-        ApplyWindowChrome(existingContext.window, { focalPointDialog = true })
+        ApplyDialogChrome(existingContext.window)
         ApplyDialogState(existingContext, options.state)
         EnableDialogEscapeClose(existingContext.window)
+        ComposeUnsavedClose(existingContext)
         FocusWindow(existingContext.window)
         return existingContext
     end
@@ -964,7 +1006,7 @@ local function OpenTextBuilderLayoutDialog(existingContext, layoutDefinition, op
         window.frame:SetClampedToScreen(true)
     end
 
-    ApplyWindowChrome(window, { focalPointDialog = true })
+    ApplyDialogChrome(window)
     if EnsureStandardWindowCloseButton then
         EnsureStandardWindowCloseButton(window)
     end
@@ -988,6 +1030,7 @@ local function OpenTextBuilderLayoutDialog(existingContext, layoutDefinition, op
         cancelButton = widgets.cancelButton,
     }
 
+    ComposeUnsavedClose(context)
     FocusWindow(window)
     return context
 end
