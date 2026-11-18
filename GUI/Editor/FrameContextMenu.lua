@@ -7,6 +7,7 @@ local FrameContextMenu = {}
 FocalPoint.GUI.Editor.FrameContextMenu = FrameContextMenu
 
 local L = FocalPoint.L or {}
+local nativeMenu
 
 local clipboard = {
     size = nil,
@@ -652,13 +653,99 @@ local function IsMouseOverMenu(menu)
     return MouseIsOver and MouseIsOver(menu) == true
 end
 
+local function ReleaseNativeMenu(state)
+    if state.owner and state.owner.HandlesGlobalMouseEvent == state.mouseHandler then
+        state.owner.HandlesGlobalMouseEvent = state.previousMouseHandler
+    end
+    if nativeMenu == state then nativeMenu = nil end
+    state.proxy, state.manager, state.context, state.owner = nil, nil, nil, nil
+    state.mouseHandler, state.previousMouseHandler = nil, nil
+end
+
+local function CloseNativeMenu()
+    local state = nativeMenu
+    if not state then return end
+    local proxy, manager = state.proxy, state.manager
+    ReleaseNativeMenu(state)
+    if proxy then manager:CloseMenu(proxy) end
+end
+
 local function CloseMenu(menu)
+    CloseNativeMenu()
     menu = menu or FrameContextMenu.menu
     HideTooltip()
     if menu and menu.Hide then
         menu:Hide()
     end
 end
+
+local function ExecuteMenuItem(item, context, validate)
+    local captured = {
+        contextKind = context.contextKind,
+        targetFrame = context.targetFrame,
+        targetTextKey = context.targetTextKey,
+        resetPositionTarget = context.resetPositionTarget,
+    }
+    CloseMenu()
+    if validate and not validate(context) then return end
+    if item and not item.preserveSelection then SelectFrame(captured.targetFrame) end
+    if item and item.action then
+        item.action(captured.contextKind == "text" and captured or captured.targetFrame)
+    end
+end
+
+local function GetSelectionSnapshot()
+    local editor = GetEditorStateApi()
+    if not editor then return {} end
+    local textUnit, textKey
+    if editor.GetSelectedTextElement then textUnit, textKey = editor.GetSelectedTextElement() end
+    local scope = editor.GetPropertyScope and editor.GetPropertyScope()
+    return {
+        primary = editor.GetPrimaryUnit and editor.GetPrimaryUnit(),
+        units = editor.GetSelectedUnits and table.concat(editor.GetSelectedUnits(), "\0"),
+        textUnit = textUnit, textKey = textKey,
+        section = scope and scope.sectionKey, objectKey = scope and scope.objectKey,
+    }
+end
+
+local function GetActiveLayoutId()
+    local resolver = FocalPoint.ActiveLayoutResolver
+    return resolver and resolver.GetStoredActiveLayoutId and resolver.GetStoredActiveLayoutId(FocalPoint.db)
+end
+
+local function IsNativeContextCurrent(context)
+    if not IsEditorUnlocked() or context.targetFrame._fpUnit ~= context.unitKey
+        or GetActiveLayoutId() ~= context.layoutId
+        or ResolveUnitConfig(context.targetFrame) ~= context.unitConfig then return false end
+    local selection = GetSelectionSnapshot()
+    for key, value in pairs(context.selection) do if selection[key] ~= value then return false end end
+    for key, value in pairs(selection) do if context.selection[key] ~= value then return false end end
+    if context.contextKind == "text" then
+        local texts = context.unitConfig and context.unitConfig.Texts
+        if not texts or texts[context.targetTextKey] ~= context.textConfig then return false end
+    end
+    return true
+end
+
+local frameItems = {
+    { text = T("EDITOR_CONTEXT_MENU_COPY_SIZE", "Copy size"), action = CopySize },
+    { text = T("EDITOR_CONTEXT_MENU_PASTE_SIZE", "Paste size"), action = PasteSize, enabled = function() return clipboard.size ~= nil end },
+    { text = GetResetSizeLabel, tooltip = GetResetSizeTooltip, action = ResetSize, preserveSelection = true },
+    { text = T("EDITOR_CONTEXT_MENU_COPY_POSITION", "Copy position"), action = CopyPosition, dividerBefore = true },
+    { text = T("EDITOR_CONTEXT_MENU_PASTE_POSITION", "Paste position"), action = PastePosition, enabled = function() return clipboard.position ~= nil end },
+    { text = GetResetPositionLabel, tooltip = GetResetPositionTooltip, action = ResetPosition, preserveSelection = true },
+    { text = T("EDITOR_CONTEXT_MENU_ALIGN_SELECTED", "Align selected"), enabled = function() return false end, dividerBefore = true },
+    { text = T("EDITOR_CONTEXT_MENU_ALIGN_LEFT", "Align left"), tooltip = GetAlignTooltip, action = function() AlignSelected("left") end, enabled = IsAlignSelectionAvailable, preserveSelection = true },
+    { text = T("EDITOR_CONTEXT_MENU_ALIGN_RIGHT", "Align right"), tooltip = GetAlignTooltip, action = function() AlignSelected("right") end, enabled = IsAlignSelectionAvailable, preserveSelection = true },
+    { text = T("EDITOR_CONTEXT_MENU_ALIGN_TOP", "Align top"), tooltip = GetAlignTooltip, action = function() AlignSelected("top") end, enabled = IsAlignSelectionAvailable, preserveSelection = true },
+    { text = T("EDITOR_CONTEXT_MENU_ALIGN_BOTTOM", "Align bottom"), tooltip = GetAlignTooltip, action = function() AlignSelected("bottom") end, enabled = IsAlignSelectionAvailable, preserveSelection = true },
+    { text = T("EDITOR_CONTEXT_MENU_ALIGN_HORIZONTAL_CENTER", "Align horizontal center"), tooltip = GetAlignTooltip, action = function() AlignSelected("horizontalCenter") end, enabled = IsAlignSelectionAvailable, preserveSelection = true },
+    { text = T("EDITOR_CONTEXT_MENU_ALIGN_VERTICAL_CENTER", "Align vertical center"), tooltip = GetAlignTooltip, action = function() AlignSelected("verticalCenter") end, enabled = IsAlignSelectionAvailable, preserveSelection = true },
+}
+local textItems = {
+    { text = T("EDITOR_CONTEXT_MENU_RESET_POSITION", "Reset position"), tooltip = GetTextResetPositionTooltip, action = ResetTextContextPosition, enabled = IsTextContextPositionResetAvailable, preserveSelection = true },
+    { text = T("EDITOR_CONTEXT_MENU_RESET_SIZE", "Reset size"), tooltip = GetTextResetSizeTooltip, action = ResetTextSize, enabled = IsTextSizeResetAvailable, preserveSelection = true },
+}
 
 local function EnsureMenu()
     if FrameContextMenu.menu then
@@ -685,25 +772,6 @@ local function EnsureMenu()
     local buttons = {}
     menu.buttons = buttons
 
-    local frameItems = {
-        { text = T("EDITOR_CONTEXT_MENU_COPY_SIZE", "Copy size"), action = CopySize },
-        { text = T("EDITOR_CONTEXT_MENU_PASTE_SIZE", "Paste size"), action = PasteSize, enabled = function() return clipboard.size ~= nil end },
-        { text = T("EDITOR_CONTEXT_MENU_COPY_POSITION", "Copy position"), action = CopyPosition },
-        { text = T("EDITOR_CONTEXT_MENU_PASTE_POSITION", "Paste position"), action = PastePosition, enabled = function() return clipboard.position ~= nil end },
-        { text = GetResetSizeLabel, tooltip = GetResetSizeTooltip, action = ResetSize, preserveSelection = true },
-        { text = GetResetPositionLabel, tooltip = GetResetPositionTooltip, action = ResetPosition, preserveSelection = true },
-        { text = T("EDITOR_CONTEXT_MENU_ALIGN_SELECTED", "Align selected"), enabled = function() return false end },
-        { text = T("EDITOR_CONTEXT_MENU_ALIGN_LEFT", "Align left"), tooltip = GetAlignTooltip, action = function() AlignSelected("left") end, enabled = IsAlignSelectionAvailable, preserveSelection = true },
-        { text = T("EDITOR_CONTEXT_MENU_ALIGN_RIGHT", "Align right"), tooltip = GetAlignTooltip, action = function() AlignSelected("right") end, enabled = IsAlignSelectionAvailable, preserveSelection = true },
-        { text = T("EDITOR_CONTEXT_MENU_ALIGN_TOP", "Align top"), tooltip = GetAlignTooltip, action = function() AlignSelected("top") end, enabled = IsAlignSelectionAvailable, preserveSelection = true },
-        { text = T("EDITOR_CONTEXT_MENU_ALIGN_BOTTOM", "Align bottom"), tooltip = GetAlignTooltip, action = function() AlignSelected("bottom") end, enabled = IsAlignSelectionAvailable, preserveSelection = true },
-        { text = T("EDITOR_CONTEXT_MENU_ALIGN_HORIZONTAL_CENTER", "Align horizontal center"), tooltip = GetAlignTooltip, action = function() AlignSelected("horizontalCenter") end, enabled = IsAlignSelectionAvailable, preserveSelection = true },
-        { text = T("EDITOR_CONTEXT_MENU_ALIGN_VERTICAL_CENTER", "Align vertical center"), tooltip = GetAlignTooltip, action = function() AlignSelected("verticalCenter") end, enabled = IsAlignSelectionAvailable, preserveSelection = true },
-    }
-    local textItems = {
-        { text = T("EDITOR_CONTEXT_MENU_RESET_POSITION", "Reset position"), tooltip = GetTextResetPositionTooltip, action = ResetTextContextPosition, enabled = IsTextContextPositionResetAvailable, preserveSelection = true },
-        { text = T("EDITOR_CONTEXT_MENU_RESET_SIZE", "Reset size"), tooltip = GetTextResetSizeTooltip, action = ResetTextSize, enabled = IsTextSizeResetAvailable, preserveSelection = true },
-    }
     menu.frameItems = frameItems
     menu.textItems = textItems
     menu:SetSize(214, 12 + (#frameItems * 23))
@@ -731,27 +799,7 @@ local function EnsureMenu()
                 return
             end
 
-            local item = self.item
-            local targetFrame = menu.targetFrame
-            local contextKind = menu.contextKind
-            local targetTextKey = menu.targetTextKey
-            local textMenuContext = {
-                contextKind = contextKind,
-                targetFrame = targetFrame,
-                targetTextKey = targetTextKey,
-                resetPositionTarget = menu.resetPositionTarget,
-            }
-            CloseMenu(menu)
-            if item and not item.preserveSelection then
-                SelectFrame(targetFrame)
-            end
-            if item and item.action then
-                if contextKind == "text" then
-                    item.action(textMenuContext)
-                else
-                    item.action(targetFrame)
-                end
-            end
+            ExecuteMenuItem(self.item, menu)
         end)
 
         button:SetScript("OnEnter", function(self)
@@ -808,10 +856,10 @@ end
 
 local function GetActiveMenuItems(menu)
     if menu and menu.contextKind == "text" then
-        return menu.textItems or {}
+        return textItems
     end
 
-    return menu and menu.frameItems or {}
+    return frameItems
 end
 
 local function UpdateMenuButtons(menu)
@@ -854,58 +902,101 @@ local function UpdateMenuButtons(menu)
     menu:SetSize(214, 12 + (#items * 23))
 end
 
-function FrameContextMenu.ShowForFrame(frame)
-    if not IsEditorUnlocked() or not frame or not frame._fpUnit then
-        return
+local function OpenNativeMenu(context)
+    if not (MenuUtil and type(MenuUtil.CreateContextMenu) == "function"
+        and Menu and type(Menu.GetManager) == "function"
+        and type(GetMouseFoci) == "function") then return false end
+    local manager = Menu.GetManager()
+    if not manager or type(manager.CloseMenu) ~= "function" then return false end
+    local previous = nativeMenu and nativeMenu.context
+    if previous and previous.contextKind == context.contextKind
+        and previous.targetFrame == context.targetFrame and previous.targetTextKey == context.targetTextKey then
+        CloseMenu()
+        return true
     end
 
-    local menu = EnsureMenu()
-    if menu:IsShown() and menu.contextKind == "frame" and menu.targetFrame == frame then
-        menu:Hide()
+    CloseMenu()
+    context.unitKey = context.targetFrame._fpUnit
+    context.unitConfig = ResolveUnitConfig(context.targetFrame)
+    context.layoutId = GetActiveLayoutId()
+    context.selection = GetSelectionSnapshot()
+    context.textConfig = context.unitConfig and context.unitConfig.Texts and context.unitConfig.Texts[context.targetTextKey]
+    local owner = GetMouseFoci()[1] or context.targetFrame
+    local state = { context = context, owner = owner, manager = manager }
+    nativeMenu = state
+    state.previousMouseHandler = owner.HandlesGlobalMouseEvent
+    state.mouseHandler = function(self, buttonName, event)
+        -- Blizzard's dropdowns use this same contract to preserve click toggling.
+        if nativeMenu == state and event == "GLOBAL_MOUSE_DOWN" and buttonName == "RightButton" then return true end
+        if state.previousMouseHandler then return state.previousMouseHandler(self, buttonName, event) end
+    end
+    owner.HandlesGlobalMouseEvent = state.mouseHandler
+    local proxy = MenuUtil.CreateContextMenu(owner, function(_, root)
+        root:AddMenuReleasedCallback(function() ReleaseNativeMenu(state) end)
+        for _, item in ipairs(GetActiveMenuItems(context)) do
+            if item.dividerBefore then root:CreateDivider() end
+            local function IsEnabled()
+                return nativeMenu == state and IsNativeContextCurrent(context)
+                    and (not item.enabled or item.enabled(context))
+            end
+            local text = type(item.text) == "function" and item.text(context) or item.text
+            local entry = root:CreateButton(text, function()
+                if nativeMenu ~= state or not state.proxy then return end
+                if not IsEnabled() then CloseNativeMenu(); return end
+                ExecuteMenuItem(item, context, IsNativeContextCurrent)
+            end)
+            entry:SetEnabled(IsEnabled)
+            if item.tooltip then
+                entry:SetTooltip(function(tooltip)
+                    if nativeMenu ~= state then return end
+                    local text = type(item.tooltip) == "function" and item.tooltip(context) or item.tooltip
+                    if type(text) == "string" and text ~= "" then tooltip:AddLine(text, 1, 1, 1, true) end
+                end)
+            end
+        end
+    end)
+    if not proxy then
+        ReleaseNativeMenu(state)
+        return false
+    end
+    if nativeMenu == state then state.proxy = proxy end
+    return true
+end
+
+local function ShowMenu(context)
+    local menu = FrameContextMenu.menu
+    if menu and menu:IsShown() and menu.contextKind == context.contextKind
+        and menu.targetFrame == context.targetFrame and menu.targetTextKey == context.targetTextKey then
+        CloseMenu(menu)
         return
     end
-
-    menu.contextKind = "frame"
-    menu.targetFrame = frame
-    menu.targetTextKey = nil
-    menu.resetPositionTarget = nil
+    if OpenNativeMenu(context) then return end
+    CloseNativeMenu()
+    menu = EnsureMenu()
+    menu.contextKind = context.contextKind
+    menu.targetFrame = context.targetFrame
+    menu.targetTextKey = context.targetTextKey
+    menu.resetPositionTarget = context.resetPositionTarget
     UpdateMenuButtons(menu)
 
     local scale = UIParent and UIParent.GetEffectiveScale and UIParent:GetEffectiveScale() or 1
     local cursorX, cursorY = GetCursorPosition()
     cursorX = (cursorX or 0) / scale
     cursorY = (cursorY or 0) / scale
-
     menu:ClearAllPoints()
     menu:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", cursorX + 8, cursorY - 8)
     menu:Show()
 end
 
+function FrameContextMenu.ShowForFrame(frame)
+    if not IsEditorUnlocked() or not frame or not frame._fpUnit then return end
+    ShowMenu({contextKind = "frame", targetFrame = frame})
+end
+
 function FrameContextMenu.ShowForText(frame, textKey)
-    if not IsEditorUnlocked() or not frame or not frame._fpUnit or type(textKey) ~= "string" or textKey == "" then
-        return
-    end
-
-    local menu = EnsureMenu()
-    if menu:IsShown() and menu.contextKind == "text" and menu.targetFrame == frame and menu.targetTextKey == textKey then
-        menu:Hide()
-        return
-    end
-
-    menu.contextKind = "text"
-    menu.targetFrame = frame
-    menu.targetTextKey = textKey
-    menu.resetPositionTarget = IsShiftDown() and "text" or "frame"
-    UpdateMenuButtons(menu)
-
-    local scale = UIParent and UIParent.GetEffectiveScale and UIParent:GetEffectiveScale() or 1
-    local cursorX, cursorY = GetCursorPosition()
-    cursorX = (cursorX or 0) / scale
-    cursorY = (cursorY or 0) / scale
-
-    menu:ClearAllPoints()
-    menu:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", cursorX + 8, cursorY - 8)
-    menu:Show()
+    if not IsEditorUnlocked() or not frame or not frame._fpUnit or type(textKey) ~= "string" or textKey == "" then return end
+    ShowMenu({contextKind = "text", targetFrame = frame, targetTextKey = textKey,
+        resetPositionTarget = IsShiftDown() and "text" or "frame"})
 end
 
 function FrameContextMenu.Hide()

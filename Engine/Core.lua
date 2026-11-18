@@ -1186,6 +1186,13 @@ local function UpdateRootTransformOverlay(frame, active)
             BeginEditorFrameSelectionClick(frame, button, source)
         end)
         overlay:SetScript("OnMouseUp", function(_, button)
+            if button == "RightButton" then
+                local contextMenu = FocalPoint.GUI and FocalPoint.GUI.Editor and FocalPoint.GUI.Editor.FrameContextMenu
+                if contextMenu and contextMenu.ShowForFrame then
+                    contextMenu.ShowForFrame(frame)
+                end
+                return
+            end
             CompleteEditorFrameSelectionClick(frame, button)
         end)
         overlay:RegisterForDrag("LeftButton")
