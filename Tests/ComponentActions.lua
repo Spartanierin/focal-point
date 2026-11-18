@@ -951,8 +951,9 @@ Test("all singleton Properties omit Remove/Actions only in Workspace while Legac
             end
             NoActions()
             local tabs={}
-            Visit(window._focalPointPropertyScroll,function(w)if w:GetUserData("normalAbsorbPropertyTab")and not w.disabled then tabs[#tabs+1]=w end end)
-            for _,tab in ipairs(tabs)do tab:Fire("OnClick");Drain();NoActions() end
+            Visit(assert(window._focalPointPropertyNavigation),function(w)if w:GetUserData("normalAbsorbPropertyTab")and not w.disabled then assert(w.frame:IsShown());tabs[#tabs+1]=w end end)
+            assert(#tabs>0,"Indicator navigation has no enabled categories")
+            for _,tab in ipairs(tabs)do tab:Fire("OnClick");Drain();assert(state.Get().inspectorPropertyGroup==tab:GetUserData("normalAbsorbPropertyTab"));NoActions() end
             controller.RefreshActiveProperties();Drain();NoActions()
             state.SetSectionCollapsed("indicators",false);state.SetSectionCollapsed("auras",false)
             local legacy=h.ui.ace:Create("SimpleGroup")
@@ -1008,10 +1009,10 @@ Test("Decoration Properties omit Delete/Actions in both modes while Legacy and n
         Check()
         for _,key in ipairs({"appearance","geometry","behavior"})do
             local function Click(w)
-                if w:GetUserData("normalAbsorbPropertyTab")==key then assert(not w.disabled);w:Fire("OnClick");return true end
+                if w:GetUserData("normalAbsorbPropertyTab")==key then assert(w.frame:IsShown() and not w.disabled);w:Fire("OnClick");return true end
                 for _,child in ipairs(w.children or {})do if Click(child)then return true end end
             end
-            assert(Click(window._focalPointPropertyScroll));Drain();Check()
+            assert(Click(assert(window._focalPointPropertyNavigation)));Drain();assert(state.Get().inspectorPropertyGroup==key);Check()
         end
         controller.RefreshActiveProperties();Drain();Check()
         assert(selection.SelectObject({kind="decoration",unit="player",decorationId=other.id}));Drain()
@@ -1110,10 +1111,10 @@ Test("Text Workspace omits Delete/Actions while named Tree Cancel/Confirm preser
         end
         for _,key in ipairs({"appearance","geometry","behavior"})do
             local function Click(w)
-                if w:GetUserData("normalAbsorbPropertyTab")==key then assert(not w.disabled);w:Fire("OnClick");return true end
+                if w:GetUserData("normalAbsorbPropertyTab")==key then assert(w.frame:IsShown() and not w.disabled);w:Fire("OnClick");return true end
                 for _,child in ipairs(w.children or {})do if Click(child)then return true end end
             end
-            assert(Click(window._focalPointPropertyScroll));Drain();Check()
+            assert(Click(assert(window._focalPointPropertyNavigation)));Drain();assert(state.Get().inspectorPropertyGroup==key);Check()
         end
         controller.RefreshActiveProperties();Drain();Check()
         window.closebutton:GetScript("OnClick")(window.closebutton);Drain();window=Build();Drain();Check()
@@ -1187,10 +1188,10 @@ Test("Resource Workspace omits Delete/Actions while named Tree Cancel/Confirm pr
         end
         for _,key in ipairs({"appearance","geometry","behavior"})do
             local function Click(w)
-                if w:GetUserData("normalAbsorbPropertyTab")==key then assert(not w.disabled);w:Fire("OnClick");return true end
+                if w:GetUserData("normalAbsorbPropertyTab")==key then assert(w.frame:IsShown() and not w.disabled);w:Fire("OnClick");return true end
                 for _,child in ipairs(w.children or {})do if Click(child)then return true end end
             end
-            assert(Click(window._focalPointPropertyScroll));Drain();Check()
+            assert(Click(assert(window._focalPointPropertyNavigation)));Drain();assert(state.Get().inspectorPropertyGroup==key);Check()
         end
         controller.RefreshActiveProperties();Drain();Check()
         window.closebutton:GetScript("OnClick")(window.closebutton);Drain();window=Build();Drain();Check()

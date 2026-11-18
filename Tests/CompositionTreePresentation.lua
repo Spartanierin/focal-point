@@ -419,6 +419,57 @@ Test("remove icons use the shared Blizzard texture and preserve removable, disab
     c:Release()
     InCombatLockdown=originalCombat
 end)
+Test("release locale keys retain DE/EN parity, fallback, format arguments and literal tag markup",function()
+    local function Locale(locale)
+        local values={}
+        local proxy=setmetatable({},{__index=values,__newindex=function(_,key,value)
+            assert(values[key]==nil,"duplicate locale key: "..key)
+            values[key]=value
+        end})
+        local env={GetLocale=function()return locale end}
+        local localized={L=proxy}
+        assert(loadfile("Locales/enUS.lua","t",env))("FocalPoint",localized)
+        local english=values
+        values={}
+        assert(loadfile("Locales/deDE.lua","t",env))("FocalPoint",localized)
+        local german=values
+        if locale=="deDE"then
+            for key in pairs(english)do assert(german[key]~=nil,"missing DE: "..key)end
+            for key in pairs(german)do assert(english[key]~=nil,"missing EN: "..key)end
+            return german
+        end
+        assert(next(german)==nil,"unexpected German override for "..locale)
+        return english
+    end
+    local en,de,fallback=Locale("enUS"),Locale("deDE"),Locale("frFR")
+    h.Equal(en,fallback)
+    local expected={OPTION_SHOW={"Show","Anzeigen"},OPTION_SIZE_MODE={"Size Mode","Größenmodus"},
+        OPTION_CUSTOM={"Custom","Benutzerdefiniert"},OPTION_MATCH_TARGET={"Match Target","An Ziel anpassen"},
+        OPTION_GROWTH_DIRECTION={"Growth Direction","Wachstumsrichtung"},OPTION_ABSORBS={"Absorbs","Absorption"},
+        COMPOSITION_TREE_EMPTY={"No composition tree available.","Kein Komponentenbaum verfügbar."},
+        INFO_COMMON_REMOVE={"Remove","Entfernen"}}
+    for key,pair in pairs(expected)do assert(en[key]==pair[1] and de[key]==pair[2],key)end
+    for _,locale in ipairs({en,de})do
+        assert(locale.INFO_TAG_DESC_COLOR_RESET:find("||r",1,true),"tag description must display a literal |r")
+        local formats={}
+        for spec in locale.LAYOUT_ACTIVATION_FAILED:gmatch("%%[a-zA-Z]")do formats[#formats+1]=spec end
+        assert(table.concat(formats)=="%s","activation reason format contract")
+        local reason="failure %s / 100%"
+        assert(string.format(locale.LAYOUT_ACTIVATION_FAILED,reason):find(reason,1,true))
+        for _,key in ipairs({"LAYOUT_ACTIVATION_PENDING","LAYOUT_ACTIVATION_DIRTY_TEXT",
+            "LAYOUT_TRANSFER_IMPORT_OWN_COPIES","LAYOUT_TRANSFER_BUILTIN_CONFLICT"})do
+            assert(type(locale[key])=="string" and locale[key]~="",key)
+            assert(not locale[key]:find("%",1,true),"unexpected format argument: "..key)
+        end
+    end
+    for _,path in ipairs({"GUI/Editor/CanvasToolbar.lua","GUI/Editor/Inspector/InspectorController.lua",
+        "GUI/Editor/Composition/CompositionTreeAdapter.lua","GUI/Editor/Composition/CompositionTreeView.lua",
+        "GUI/Editor/LayoutManager/LayoutManagerView.lua"})do
+        local code=Read(path)
+        for key in code:gmatch('L%["([A-Z][A-Z0-9_]*)"%]')do assert(en[key] and de[key],path..": "..key)end
+        for key in code:gmatch('T%("([A-Z][A-Z0-9_]*)"')do assert(en[key] and de[key],path..": "..key)end
+    end
+end)
 assert(#h.ui.env.errors==0,table.concat(h.ui.env.errors,"\n"))
 GameTooltip=oldTooltip
 print("Composition Tree Presentation: "..count.." groups PASS")

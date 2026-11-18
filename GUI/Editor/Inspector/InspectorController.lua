@@ -474,7 +474,7 @@ function InspectorController.Build(container, state, options)
     local auraSortModeList = BuildLocalizedList(auraLayouts.Lists and auraLayouts.Lists.sortMode)
     local decorationTargetList = {
         FRAME = L["EDITOR_SECTION_FRAME"] or "Frame",
-        PORTRAIT = L["EDITOR_SECTION_PORTRAIT"] or "Portrait",
+        PORTRAIT = L["ELEMENT_PORTRAIT"] or "Portrait",
     }
     local decorationConditionList = {
         ALWAYS = L["OPTION_ALWAYS"] or "Always",
@@ -1662,8 +1662,8 @@ function InspectorController.Build(container, state, options)
                 objectKey = "NormalAbsorbBar",
                 prefix = "normalAbsorbBar",
                 showField = "showNormalAbsorbBar",
-                title = L["OPTION_NORMAL_ABSORB"] or "Normal Absorb",
-                headerTitle = L["OPTION_NORMAL_ABSORB"] or "Normal Absorb Bar",
+                title = L["ADD_OBJECT_NORMAL_ABSORB_BAR_BUTTON"] or "Normal Absorb",
+                headerTitle = L["ADD_OBJECT_NORMAL_ABSORB_BAR_BUTTON"] or "Normal Absorb Bar",
                 fallbackColor = { 0.66, 0.86, 1.0, 0.62 },
                 fallbackGrowth = "LEFT_TO_RIGHT",
             }
@@ -1672,8 +1672,8 @@ function InspectorController.Build(container, state, options)
                 objectKey = "HealingAbsorbBar",
                 prefix = "healingAbsorbBar",
                 showField = "showHealingAbsorbBar",
-                title = L["OPTION_HEALING_ABSORB"] or "Healing Absorb",
-                headerTitle = L["OPTION_HEALING_ABSORB"] or "Healing Absorb Bar",
+                title = L["ADD_OBJECT_HEALING_ABSORB_BAR_BUTTON"] or "Healing Absorb",
+                headerTitle = L["ADD_OBJECT_HEALING_ABSORB_BAR_BUTTON"] or "Healing Absorb Bar",
                 fallbackColor = { 0.75, 0.20, 1.0, 0.62 },
                 fallbackGrowth = "RIGHT_TO_LEFT",
             }
@@ -3166,7 +3166,7 @@ function InspectorController.Build(container, state, options)
             end
             Slider(geometrySection, "spacing", L["OPTION_CLASS_POWER_BAR_SPACING"] or "Segment Spacing", 0, 20)
             local positionSection = CreateSegmentedPropertyGroup(body, L["SECTION_POSITION"] or "Position", true)
-            local targets = {Frame=L["SECTION_FRAME"] or "Frame"}
+            local targets = {Frame=L["EDITOR_SECTION_FRAME"] or "Frame"}
             for _, item in ipairs(unitConfig.segmentedBars or {}) do
                 if item.id ~= ref.objectKey then targets["SegmentedBar:" .. item.id] = item.id end
             end
@@ -3438,7 +3438,7 @@ function InspectorController.Build(container, state, options)
     end
 
     if buildPropertiesOnly and IsSelectedUnitRootObject(selectedUnit) then
-        AddScopedObjectInspectorBody("frame", L["EDITOR_SECTION_UNIT_FRAME"] or L["EDITOR_SECTION_FRAME"] or "Unit Frame", BuildUnitRootSectionContent)
+        AddScopedObjectInspectorBody("frame", L["EDITOR_SECTION_FRAME"] or "Unit Frame", BuildUnitRootSectionContent)
         return
     end
 
@@ -4064,9 +4064,9 @@ function InspectorController.Build(container, state, options)
             return
         end
 
-        BuildAbsorbBar("normalAbsorbBar", "showNormalAbsorbBar", L["OPTION_NORMAL_ABSORB"] or "Normal Absorb", { 0.66, 0.86, 1.0, 0.62 }, "LEFT_TO_RIGHT")
+        BuildAbsorbBar("normalAbsorbBar", "showNormalAbsorbBar", L["ADD_OBJECT_NORMAL_ABSORB_BAR_BUTTON"] or "Normal Absorb", { 0.66, 0.86, 1.0, 0.62 }, "LEFT_TO_RIGHT")
         AddSpacer(absorbsSection, 6)
-        BuildAbsorbBar("healingAbsorbBar", "showHealingAbsorbBar", L["OPTION_HEALING_ABSORB"] or "Healing Absorb", { 0.75, 0.20, 1.0, 0.62 }, "RIGHT_TO_LEFT")
+        BuildAbsorbBar("healingAbsorbBar", "showHealingAbsorbBar", L["ADD_OBJECT_HEALING_ABSORB_BAR_BUTTON"] or "Healing Absorb", { 0.75, 0.20, 1.0, 0.62 }, "RIGHT_TO_LEFT")
     end
 
     do

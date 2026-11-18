@@ -301,7 +301,7 @@ local function RefreshLayoutControls(current)
         end
     end
 
-    manageButton:SetText("Manage Layouts")
+    manageButton:SetText(T("LAYOUT_MANAGER_TITLE", "Manage Layouts"))
     manageButton:SetDisabled(false)
     local addDisabled = type(activeLayoutId) ~= "string" or activeLayoutId == ""
     if current.widgets.layoutAddButton then
@@ -335,12 +335,12 @@ local function ReportLayoutActivationResult(ok, reason)
     end
     if reason == "pending" then
         if ns.Info then
-            ns:Info("Layout activation is pending until combat ends.")
+            ns:Info(T("LAYOUT_ACTIVATION_PENDING", "Layout activation is pending until combat ends."))
         end
         return
     end
     if reason and reason ~= "same-layout" and ns.Info then
-        ns:Info("Layout activation failed: " .. tostring(reason))
+        ns:Info(string.format(T("LAYOUT_ACTIVATION_FAILED", "Layout activation failed: %s"), tostring(reason)))
     end
 end
 
@@ -1284,10 +1284,10 @@ local function EnsureHost()
         addObjectButton = CreateButton(T("ADD_UNIT_BUTTON", "+ Add Unit"), INSERT_ADD_OBJECT_WIDTH),
         layoutDropdown = AceGUI:Create("Dropdown"),
         layoutAddButton = CreateButton("+", LAYOUT_ADD_WIDTH),
-        layoutManageButton = CreateButton("Manage Layouts", LAYOUT_MANAGE_WIDTH),
+        layoutManageButton = CreateButton(T("LAYOUT_MANAGER_TITLE", "Manage Layouts"), LAYOUT_MANAGE_WIDTH),
         optionsButton = CreateButton(T("OPTION_OPTIONS", "Options"), OPTIONS_WIDTH),
         presentationButton = CreateButton(T("EDITOR_CUSTOMIZE", "Customize"), PRESENTATION_WIDTH),
-        closeButton = CreateButton(T("CLOSE", "Close"), CLOSE_WIDTH),
+        closeButton = CreateButton(T("INFO_COMMON_CLOSE", "Close"), CLOSE_WIDTH),
     }
 
     if FormWidgets and FormWidgets.ApplyModalActionButtonVisual then
@@ -1390,7 +1390,7 @@ local function EnsureHost()
                 end
                 if HasDirtyTextBuilderDraft() then
                     if ns.Info then
-                        ns:Info("Save or discard text changes before activating another layout.")
+                        ns:Info(T("LAYOUT_ACTIVATION_DIRTY_TEXT", "Save or discard text changes before activating another layout."))
                     end
                     RefreshLayoutControls(context)
                     return

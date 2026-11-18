@@ -1127,8 +1127,8 @@ local function OpenTransferDialog(export)
                     end
                     if approvals and next(approvals) then
                         forkApproval, approvalText = approvals, input
-                        dialog.primaryButton:SetText("Import with own copies")
-                        dialog:SetStatus("Built-in templates differ. Confirm import as separate user templates.", "warning", statusTarget)
+                        dialog.primaryButton:SetText(T("LAYOUT_TRANSFER_IMPORT_OWN_COPIES", "Import with own copies"))
+                        dialog:SetStatus(T("LAYOUT_TRANSFER_BUILTIN_CONFLICT", "Built-in templates differ. Confirm import as separate user templates."), "warning", statusTarget)
                         FitTransferContent()
                         return
                     end
