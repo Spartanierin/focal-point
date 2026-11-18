@@ -5,6 +5,9 @@ local stop=assert(source:find("-- Direct utility chrome",1,true))
 local f,Find=assert(load(source:sub(1,stop-1).."\nforms.CreateCompactFormDialog=create; return f,Find","@Tool/NativeFixture"))()
 local ns,ace,native,Equal,Load,Upvalue=f.ns,f.ace,f.native,f.Equal,f.Load,f.Upvalue
 local forms=f.widgets
+function native:GetJustifyH() return self.lastSetJustifyH and self.lastSetJustifyH[1] or "CENTER" end
+function native:GetShadowOffset() return table.unpack(self.lastSetShadowOffset or {1,-1}) end
+function native:GetShadowColor() return table.unpack(self.lastSetShadowColor or {0,0,0,1}) end
 local tagPieces
 function native:SetStatusBarColor(...) self.lastSetStatusBarColor={...} end
 function native:SetStatusBarTexture(...) self.lastSetStatusBarTexture={...} end
@@ -168,9 +171,99 @@ for i=1,30 do
 end
 NoErrors()
 
+local directOptions={windowChrome="editmode",titleFontSize=16,titleOffsetY=-7,
+    headerDrag={left=8,right=36,top=0,height=32}}
+local function Points(region)
+    local result={}
+    for index=1,region:GetNumPoints() do
+        local point,relative,relativePoint,x,y=region:GetPoint(index)
+        result[point]={relative,relativePoint,x,y}
+    end
+    return result
+end
+local function CheckDirect(window,w,h)
+    Equal({window.frame:GetWidth(),window.frame:GetHeight()},{w,h})
+    Equal({window.titletext:GetFont()},{STANDARD_TEXT_FONT,16,""})
+    Equal(window.titletext.lastSetTextColor,{1,1,1,1})
+    local p=window.titletext.points
+    Equal({p.TOPLEFT.x,p.TOPLEFT.y,p.TOPRIGHT.x,p.TOPRIGHT.y},{12,-15,-32,-15})
+    local d=window.title.points
+    assert(d.TOPLEFT.relative==window.frame and d.BOTTOMRIGHT.relative==window.frame)
+    Equal({d.TOPLEFT.x,d.TOPLEFT.y,d.BOTTOMRIGHT.x,d.BOTTOMRIGHT.y},{8,0,-math.max(36,window.closebutton:GetWidth()+4),-32})
+    Equal(window.frame._fpModernPortraitBackground.lastSetColorTexture,{0,0,0,.8})
+    assert(window.frame._fpModernPortraitBackground:IsShown())
+    for _,key in ipairs({"_fpToolBody","_fpToolTitlebar","_fpModernNineSlice","_fpModernPortraitContainer","_fpModernPortraitTopTileStreaks"}) do
+        assert(not window.frame[key] or not window.frame[key]:IsShown(),key)
+    end
+    assert(not window.frame._fpCompactFormShell and not window._focalPointEditorRole)
+    assert(window:GetUserData("fpDirectEditModeChrome"))
+end
+do
+    local atlas,legacyAtlas=C_Texture,GetAtlasInfo
+    local releases=0
+    for _,mode in ipairs({"native","metal","flat"}) do
+        C_Texture={GetAtlasInfo=function(name)
+            if mode=="flat" or mode=="metal" and name:find("DiamondMetal",1,true) then return nil end
+            return {width=32,height=32}
+        end};GetAtlasInfo=nil
+        local direct=ace:Create("Window");direct:SetWidth(720);direct:SetHeight(660);direct:EnableResize(false)
+        direct.titletext:SetFont(STANDARD_TEXT_FONT,19,"OUTLINE")
+        direct.titletext:SetTextColor(.2,.3,.4,.5);direct.titletext:SetJustifyH("LEFT")
+        direct.titletext:SetShadowOffset(2,-3);direct.titletext:SetShadowColor(.1,.2,.3,.4)
+        local before={font={direct.titletext:GetFont()},color={direct.titletext:GetTextColor()},
+            justify=direct.titletext:GetJustifyH(),layer={direct.titletext:GetDrawLayer()},
+            title=Points(direct.titletext),drag=Points(direct.title),
+            dragSize={direct.title:GetWidth(),direct.title:GetHeight()},content=Points(direct.content)}
+        before.parent=direct.titletext:GetParent()
+        before.shadowOffset={direct.titletext:GetShadowOffset()};before.shadowColor={direct.titletext:GetShadowColor()}
+        local mouseDown,mouseUp,close=direct.title:GetScript("OnMouseDown"),direct.title:GetScript("OnMouseUp"),direct.closebutton:GetScript("OnClick")
+        direct:SetCallback("OnRelease",function() releases=releases+1 end)
+        forms.ApplyModernWindowChrome(direct,directOptions);CheckDirect(direct,720,660)
+        Equal(Points(direct.content),before.content)
+        Equal(direct.title:GetScript("OnMouseDown"),mouseDown);Equal(direct.title:GetScript("OnMouseUp"),mouseUp)
+        Equal(direct.closebutton:GetScript("OnClick"),close)
+        if mode=="flat" then assert(direct.frame._fpPanelBorderTop:IsShown())
+        else
+            assert(direct.frame._fpModernTitleLeft:IsShown())
+            Equal(direct.frame._fpModernTitleLeft.atlas,mode=="native" and "UI-Frame-DiamondMetal-CornerTopLeft" or "UI-Frame-PortraitMetal-CornerTopLeft")
+        end
+        local release=direct.events.OnRelease
+        for cycle=1,20 do
+            forms.ApplyModernWindowChrome(direct,directOptions);CheckDirect(direct,720,660)
+            Equal(direct.events.OnRelease,release)
+            forms.RestoreDefaultWindowChrome(direct)
+            Equal({direct.titletext:GetFont()},before.font);Equal({direct.titletext:GetTextColor()},before.color)
+            Equal(direct.titletext:GetJustifyH(),before.justify);Equal({direct.titletext:GetDrawLayer()},before.layer)
+            Equal(direct.titletext:GetParent(),before.parent)
+            Equal({direct.titletext:GetShadowOffset()},before.shadowOffset);Equal({direct.titletext:GetShadowColor()},before.shadowColor)
+            Equal(Points(direct.titletext),before.title);Equal(Points(direct.title),before.drag)
+            Equal({direct.title:GetWidth(),direct.title:GetHeight()},before.dragSize)
+            assert(not direct:GetUserData("fpDirectEditModeChrome"))
+        end
+        forms.ApplyModernWindowChrome(direct,tool);Check(direct,720,660)
+        forms.ApplyModernWindowChrome(direct,directOptions);CheckDirect(direct,720,660)
+        ace:Release(direct)
+        assert(not direct:GetUserData("fpDirectEditModeChrome") and not direct:GetUserData("fpDirectEditModeRelease"))
+        assert(not direct.frame._fpModernPortraitBackground:IsShown())
+        local reacquired=ace:Create("Window");Equal(reacquired,direct)
+        reacquired:SetWidth(720);reacquired:SetHeight(660);reacquired:EnableResize(false)
+        forms.ApplyModernWindowChrome(reacquired,tool);Check(reacquired,720,660)
+        ace:Release(reacquired)
+    end
+    Equal(releases,3)
+    C_Texture,GetAtlasInfo=atlas,legacyAtlas
+end
+
 -- Actual tools: only media/catalog and persistence are fixture data.
 local applyModern=forms.ApplyModernWindowChrome; local consumerCount=0
 forms.ApplyModernWindowChrome=function(owner,options)
+    if options.windowChrome=="editmode" then
+        local content=Points(owner.content)
+        applyModern(owner,options);CheckDirect(owner,720,660)
+        Equal(Points(owner.content),content)
+        consumerCount=consumerCount+1
+        return
+    end
     assert(options.focalPointTool and options.nineSlice and options.portrait)
     local old={}; for k,v in pairs(options) do old[k]=v end; old.focalPointTool=nil
     applyModern(owner,old)
@@ -189,7 +282,7 @@ local function OpenMedia()
 end
 OpenMedia(); NoErrors()
 local mediaContext=Upvalue(media.Open,"context")
-Check(mediaContext.window,720,660)
+CheckDirect(mediaContext.window,720,660)
 assert(mediaContext.widgets.preview and mediaContext.widgets.itemScroll)
 assert(#mediaContext.state.items>0)
 mediaContext.widgets.searchBox:Fire("OnTextChanged","unlikely-missing-font"); NoErrors()
@@ -219,6 +312,93 @@ NineSliceUtil.ApplyLayoutByName=function(host,name,kit)
         if C_Texture.GetAtlasInfo(atlas) then host[key]:SetAtlas(atlas,true);host[key].testAtlas=atlas end
     end
 end
+-- Media uses the same native border pattern with optional Center and no rectangle fallback.
+do
+    local view=ns.GUI.Editor.MediaLibrary.MediaLibraryView
+    local surface=Upvalue(view.Create,"ApplyCentralSectionChrome")
+    local w=mediaContext.widgets
+    local atlasAPI=C_Texture
+    local missing
+    C_Texture={GetAtlasInfo=function(name)
+        if name=="OptionsFrame-NineSlice-Center" or name==missing then return nil end
+        return {width=32,height=32}
+    end}
+    for _,group in ipairs({w.listGroup,w.previewGroup}) do
+        surface(group)
+        local box=assert(group.frame._fpMediaGroupBox)
+        Equal(box.testKit,"OptionsFrame");assert(box:IsShown())
+        Equal(Points(box),{TOPLEFT={group.frame,"TOPLEFT",-16,15},BOTTOMRIGHT={group.frame,"BOTTOMRIGHT",16,-15}})
+        for cycle=1,30 do surface(group);Equal(group.frame._fpMediaGroupBox,box) end
+        missing="OptionsFrame-NineSlice-CornerTopLeft";surface(group);assert(not box:IsShown())
+        missing=nil;surface(group);assert(box:IsShown())
+    end
+    Equal(w.listGroup.frame:GetHeight(),272);Equal(w.itemScroll.frame:GetHeight(),226)
+    Equal(w.previewGroup.frame:GetHeight(),192);Equal(w.preview.frame:GetHeight(),112)
+    Equal(w.root.children[5].frame:GetHeight(),32) -- expanded borders have a 2-unit host gap
+    Equal(w.root.children[7].frame:GetHeight(),16) -- footer outside the preview host
+    Equal(w.actions.children,{w.applyButton,w.cancelButton})
+    Equal(w.root.children[1].frame:GetHeight(),14)
+    Equal(w.filterRow.frame:GetHeight(),40);Equal(w.root.children[3].frame:GetHeight(),12)
+    Equal(w.actions.frame:GetHeight(),25)
+    assert(w.applyButton.frame:GetHeight()<=25 and w.cancelButton.frame:GetHeight()<=25)
+    Equal(w.searchBox.label.font[2],13);Equal(w.sourceDropdown.label.font[2],13)
+    Equal(w.searchBox.editbox.font[2],14)
+    assert(not w.valueLabel.frame:IsShown() and not w.resolvedAssetLabel.frame:IsShown())
+    Equal(w.selectedLabel:GetUserData("cell").colspan,2)
+    assert(not DropdownButtonMixin) -- native-menu fixture was restored by the New Layout tests
+    assert(not w.sourceDropdown:GetUserData("nativePropertyDropdown"))
+    assert(w.sourceDropdown.dropdown:IsShown())
+    local originalLocale=GetLocale
+    for _,locale in ipairs({"enUS","deDE"}) do
+        GetLocale=function()return locale end
+        Load("Locales/enUS.lua");if locale=="deDE" then Load("Locales/deDE.lua") end
+        for _,kind in ipairs({"font","statusbar","decoration"}) do
+            assert(media.Open({mediaType=kind}))
+            Equal(w.listTitle.label:GetText(),ns.L["MEDIA_LIBRARY_TYPE_"..kind:upper()])
+            assert(w.preview.item==mediaContext.state.selectedItem)
+            media.Close()
+        end
+        local ref="Interface/"..string.rep("long-technical-reference/",24).."asset"
+        assert(media.Open({mediaType="font",currentValue=ref}))
+        assert(w.valueLabel.frame.__fpInspectorTooltip:find(ref,1,true))
+        assert(w.resolvedAssetLabel.frame.__fpInspectorTooltip==w.resolvedAssetLabel.label:GetText())
+        media.Close()
+    end
+    GetLocale=originalLocale;Load("Locales/enUS.lua")
+    -- A released group hides its sibling art and reacquires without a second frame.
+    local group=ace:Create("SimpleGroup");surface(group)
+    local box=group.frame._fpMediaGroupBox
+    ace:Release(group);assert(not box:IsShown())
+    local reused=ace:Create("SimpleGroup");Equal(reused,group);surface(reused)
+    Equal(reused.frame._fpMediaGroupBox,box);ace:Release(reused)
+    C_Texture=atlasAPI
+    NoErrors()
+    print("PASS: Media two native groups, optional Center/required-edge fallback, 30 reapplications, release/reuse, Source fallback, EN/DE types and complete reference tooltips")
+end
+-- Local filter typography must not survive an actual AceGUI window release.
+do
+    local view=ns.GUI.Editor.MediaLibrary.MediaLibraryView
+    local context={state={title="Media release fixture",subtitle="Choose media",mediaType="font",items={},sourceFilter="all"},
+        callbacks={onWindowClosed=function() end}}
+    view.Create(context)
+    local w=context.widgets
+    local release=w.searchBox.events.OnRelease
+    local inputFont,inputSize,inputFlags=Upvalue(release,"inputFont"),Upvalue(release,"inputSize"),Upvalue(release,"inputFlags")
+    local sourceRelease=w.sourceDropdown.events.OnRelease
+    local sourceFont,sourceSize,sourceFlags=Upvalue(sourceRelease,"font"),Upvalue(sourceRelease,"size"),Upvalue(sourceRelease,"flags")
+    ace:Release(context.window)
+    Equal({w.searchBox.editbox:GetFont()},{inputFont,inputSize,inputFlags})
+    Equal({w.sourceDropdown.label:GetFont()},{sourceFont,sourceSize,sourceFlags})
+    assert(not w.searchBox.frame._fpMediaSearchFill:IsShown())
+    for _,label in ipairs({w.selectedLabel,w.sourceLabel,w.statusLabel,w.selectionHelp,w.valueLabel,w.resolvedAssetLabel}) do
+        assert(not label.frame.__fpInspectorTooltip)
+        Equal(label.label.lastSetWordWrap,{true})
+        Equal(label.label.lastSetMaxLines,{0})
+    end
+    NoErrors()
+    print("PASS: Media local 13/14 filter fonts and metadata tooltip state restore on actual window release")
+end
+
 local tags=ns.GUI.Pages.TagLibrary; local tagApplied
 local missingTagAtlas
 local function OpenTags(options)
@@ -308,7 +488,7 @@ ns.TextTemplateMutations={
 Load("GUI/Pages/TextBuilder/TextBuilderController.lua")
 local builder=ns.GUI.Pages.TextBuilder
 builder.OpenWindow(); NoErrors()
-Equal(consumerCount,2); forms.ApplyModernWindowChrome=applyModern -- Media and large Builder; Tags use Compact Edit Mode.
+Equal(consumerCount,3); forms.ApplyModernWindowChrome=applyModern -- Media, release fixture and large Builder; Tags use Compact Edit Mode.
 local builderContext=Upvalue(builder.OpenWindow,"windowContext")
 Check(builderContext.window,1040,700)
 local key=table.concat({"profile","Test","Test","","Sample"},"\031")
@@ -347,7 +527,7 @@ NoErrors()
 local warmCount
 local callbacks={mediaContext.window.events.OnRelease,tagContext.window.events.OnRelease,builderContext.window.events.OnRelease}
 for cycle=1,30 do
-    OpenMedia(); Check(mediaContext.window,720,660)
+    OpenMedia(); CheckDirect(mediaContext.window,720,660)
     mediaContext.window.frame:Run("OnKeyDown","ESCAPE"); assert(not mediaContext.window.frame:IsShown())
     OpenTags(); CheckTags(tagContext)
     tagContext.window.closebutton:Run("OnClick"); assert(not tagContext.window.frame:IsShown())

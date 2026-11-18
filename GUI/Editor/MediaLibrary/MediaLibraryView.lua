@@ -10,10 +10,6 @@ local FormSectionSurfaceRenderer = ns.GUI.Helpers and ns.GUI.Helpers.FormSection
 local TextStyles = ns.GUI.Helpers and ns.GUI.Helpers.TextStyles or {}
 local L = ns.L or {}
 
-local ApplySectionBorder = FormSectionSurfaceRenderer.ApplySectionBorder
-local ApplySectionSurface = FormSectionSurfaceRenderer.ApplySectionSurface
-local ResolveSectionStyle = FormWidgets.ResolveSectionStyle
-
 local MediaLibraryView = {}
 ns.GUI.Editor.MediaLibrary.MediaLibraryView = MediaLibraryView
 
@@ -24,7 +20,6 @@ local ROW_WIDGET_TYPE = "FocalPointMediaLibraryRow"
 local ROW_WIDGET_VERSION = 1
 local ROW_HEIGHT_COMPACT = 28
 local ROW_HEIGHT_BADGED = 38
-local CHROME_PREFIX = "_fpMediaBrowser"
 
 local SOURCE_ORDER = {
     "all",
@@ -88,21 +83,6 @@ local function CreateButton(text, role, width)
         FormWidgets.ApplyModalActionButtonVisual(button, role or "utility")
     end
     return button
-end
-
-local function CreateSpacer(width, height)
-    local spacer = AceGUI:Create("Label")
-    spacer:SetText("")
-    if width then
-        spacer:SetFullWidth(false)
-        spacer:SetWidth(width)
-    else
-        spacer:SetFullWidth(true)
-    end
-    if height and spacer.SetHeight then
-        spacer:SetHeight(height)
-    end
-    return spacer
 end
 
 local function LockContainerHeight(container, height)
@@ -421,13 +401,52 @@ end
 RegisterMediaLibraryRowWidget()
 
 local function ApplyCentralSectionChrome(widget)
-    local sectionStyle = ResolveSectionStyle and ResolveSectionStyle("section_panel") or nil
-    if ApplySectionSurface then
-        ApplySectionSurface(widget, sectionStyle)
+    local renderer = ns.GUI.Helpers.FormSectionSurfaceRenderer
+    renderer.ApplySectionSurface(widget, nil)
+    renderer.ApplySectionBorder(widget, false)
+    local box = widget.frame._fpMediaGroupBox
+    if box then box:Hide() end
+    do
+        -- Blizzard_EditMode/Shared/EditModeManager.xml: BorderArt, OptionsFrame kit.
+        local layout = NineSliceUtil and NineSliceUtil.GetLayout and NineSliceUtil.GetLayout("UniqueCornersLayout")
+        local atlasInfo = C_Texture and C_Texture.GetAtlasInfo or GetAtlasInfo
+        local available = layout and NineSliceUtil.ApplyLayoutByName and type(atlasInfo) == "function"
+        -- Center is optional: Blizzard SetupPieceVisuals skips SetAtlas when it is absent.
+        for _, key in ipairs({"TopLeftCorner", "TopRightCorner", "BottomLeftCorner", "BottomRightCorner",
+            "TopEdge", "BottomEdge", "LeftEdge", "RightEdge"}) do
+            local piece = layout and layout[key]
+            if available and piece and type(piece.atlas) == "string" then
+                local ok, info = pcall(atlasInfo, string.format(piece.atlas, "OptionsFrame"))
+                available = ok and info ~= nil and info ~= false
+            else
+                available = false
+            end
+        end
+        -- Missing border art means no decoration, never a substitute rectangle.
+        if available then
+            if not box then
+                -- A sibling keeps native corner art outside the clipped scroll/preview.
+                box = CreateFrame("Frame", nil, widget.frame:GetParent())
+                widget.frame._fpMediaGroupBox = box
+                box:EnableMouse(false)
+            end
+            box:SetParent(widget.frame:GetParent())
+            box:ClearAllPoints()
+            -- Native BorderArt margins surround the full section, including its last row.
+            box:SetPoint("TOPLEFT", widget.frame, "TOPLEFT", -16, 15)
+            box:SetPoint("BOTTOMRIGHT", widget.frame, "BOTTOMRIGHT", 16, -15)
+            box:SetFrameLevel(widget.frame:GetFrameLevel())
+            box:SetAlpha(1)
+            NineSliceUtil.ApplyLayoutByName(box, "UniqueCornersLayout", "OptionsFrame")
+            box:Show()
+        end
     end
-    if ApplySectionBorder then
-        ApplySectionBorder(widget, sectionStyle and sectionStyle.border or nil)
-    end
+    widget:SetCallback("OnRelease", function(released)
+        renderer.ApplySectionSurface(released, nil)
+        renderer.ApplySectionBorder(released, false)
+        if released._fpSectionPadding then renderer.ApplySectionPadding(released, nil) end
+        if released.frame._fpMediaGroupBox then released.frame._fpMediaGroupBox:Hide() end
+    end)
 end
 
 local function FindCurrentRowIndex(rows)
@@ -547,7 +566,9 @@ local function SetMetaLabel(label, title, value)
         return
     end
 
-    label:SetText(string.format("%s: %s", title, tostring(value or "")))
+    local text = string.format("%s: %s", title, tostring(value or ""))
+    label:SetText(text)
+    FormWidgets.SetInspectorButtonTooltip(label, text)
 end
 
 local function BuildStatusText(item)
@@ -590,12 +611,15 @@ local function RefreshMetadata(context)
         selectionHelp = T("MEDIA_LIBRARY_SELECTION_VISIBLE", "Apply uses the selected result.")
     end
     SetMetaLabel(widgets.selectedLabel, T("MEDIA_LIBRARY_SELECTED", "Selected"),
-        item and Shorten(item.name or item.label, 72) or T("MEDIA_LIBRARY_STATUS_NONE", "No media selected"))
+        item and (item.name or item.label) or T("MEDIA_LIBRARY_STATUS_NONE", "No media selected"))
     widgets.selectionHelp:SetText(selectionHelp)
+    FormWidgets.SetInspectorButtonTooltip(widgets.selectionHelp, selectionHelp)
+    -- The ordinary Apply hint repeats the button; retained/unavailable/empty warnings do not.
+    widgets.selectionHelp.frame:SetShown(not (item and canApply and inResults))
 
     local source = item and GetSourceLabel(item.source) or "-"
     if item and item.provider and item.provider ~= "" then
-        source = source .. " / " .. T("MEDIA_LIBRARY_PROVIDER", "Provider") .. ": " .. Shorten(item.provider, 40)
+        source = source .. " / " .. T("MEDIA_LIBRARY_PROVIDER", "Provider") .. ": " .. item.provider
     end
     SetMetaLabel(widgets.sourceLabel, T("MEDIA_LIBRARY_SOURCE", "Source"), source)
     local status = { BuildStatusText(item) }
@@ -608,8 +632,14 @@ local function RefreshMetadata(context)
         end
     end
     SetMetaLabel(widgets.statusLabel, T("MEDIA_LIBRARY_STATUS", "Status"), table.concat(status, " / "))
-    SetMetaLabel(widgets.valueLabel, T("MEDIA_LIBRARY_VALUE", "Value"), item and Shorten(item.value, 76) or "-")
-    SetMetaLabel(widgets.resolvedAssetLabel, T("MEDIA_LIBRARY_RESOLVED_ASSET", "Resolved Asset"), item and Shorten(item.resolvedAsset, 76) or "-")
+    SetMetaLabel(widgets.valueLabel, T("MEDIA_LIBRARY_VALUE", "Value"), item and item.value or "-")
+    SetMetaLabel(widgets.resolvedAssetLabel, T("MEDIA_LIBRARY_RESOLVED_ASSET", "Resolved Asset"), item and item.resolvedAsset or "-")
+
+    -- Technical references remain complete, but do not compete with identity/source/status.
+    FormWidgets.SetInspectorButtonTooltip(widgets.selectedLabel, table.concat({
+        widgets.selectedLabel.label:GetText(), widgets.valueLabel.label:GetText(),
+        widgets.resolvedAssetLabel.label:GetText(),
+    }, "\n"))
 
     if widgets.metadata and widgets.metadata.DoLayout then
         widgets.metadata:DoLayout()
@@ -694,6 +724,10 @@ function MediaLibraryView.Refresh(context)
         widgets.sourceDropdown:SetValue(context.state.sourceFilter or "all")
     end
 
+    if widgets.listTitle then
+        local keys = { font = "MEDIA_LIBRARY_TYPE_FONT", statusbar = "MEDIA_LIBRARY_TYPE_STATUSBAR", decoration = "MEDIA_LIBRARY_TYPE_DECORATION" }
+        widgets.listTitle:SetText(T(keys[context.state.mediaType] or "MEDIA_LIBRARY_TITLE", "Media Library"))
+    end
     MediaLibraryView.RefreshList(context)
 end
 
@@ -711,10 +745,10 @@ function MediaLibraryView.Create(context)
 
     if FormWidgets.ApplyModernWindowChrome then
         FormWidgets.ApplyModernWindowChrome(window, {
-            focalPointTool = true,
-            nineSlice = true,
-            portrait = true,
-            portraitTexture = "Interface\\AddOns\\FocalPoint\\Media\\Icons\\Runtime\\fp_icon_portrait.png",
+            windowChrome = "editmode",
+            titleFontSize = 16,
+            titleOffsetY = -7,
+            headerDrag = { left = 8, right = 36, top = 0, height = 32 },
         })
     end
     if FormWidgets.EnsureStandardWindowCloseButton then
@@ -722,110 +756,168 @@ function MediaLibraryView.Create(context)
     end
     EnableEscapeClose(window)
 
+    local function Group(parent, height, layout)
+        local group = AceGUI:Create("SimpleGroup")
+        group:SetLayout(layout == "Table" and "List" or (layout or "List"))
+        group:SetFullWidth(true)
+        LockContainerHeight(group, height)
+        parent:AddChild(group)
+        return group
+    end
+    local function Gap(parent, height)
+        -- SimpleGroup has a stable height, unlike dynamically measured empty Labels.
+        return Group(parent, height)
+    end
+    local function Heading(label)
+        local color = NORMAL_FONT_COLOR or ns.GUI.Helpers.TextStyles.Get("sectionHeader")
+        ApplyLabelText(label, "sectionHeader", { size = 14 })
+        label.label:SetTextColor(color.r, color.g, color.b, 1)
+    end
     local root = AceGUI:Create("SimpleGroup")
-    root:SetLayout("Flow")
+    root:SetLayout("List")
     root:SetFullWidth(true)
     root:SetFullHeight(true)
     window:AddChild(root)
+    FormSectionSurfaceRenderer.ApplySectionPadding(root, { left = 16, right = 16, top = 0, bottom = 0 })
+    root:SetCallback("OnRelease", function(widget) FormSectionSurfaceRenderer.ApplySectionPadding(widget, nil) end)
 
-    local titleRow = AceGUI:Create("SimpleGroup")
-    titleRow:SetLayout("Flow")
-    titleRow:SetFullWidth(true)
-    LockContainerHeight(titleRow, 24)
-    root:AddChild(titleRow)
-
-    titleRow:AddChild(CreateSpacer(12))
-    local title = CreateLabel(context.state.subtitle or "", "help", 11, 650)
+    -- List budget: 14 + 40 + 12 + 272 + 32 + 192 + 16 + 25 = 603.
+    -- Native Source ends at row y=40. Its 12-unit gap to the next section replaces
+    -- the old 4-unit row reserve; the unchanged border host extends 15 upward.
+    -- Thus the filter-to-border contour gains 8 units regardless of atlas artwork.
+    local titleRow = Group(root, 14)
+    local title = CreateLabel(context.state.subtitle or "", "help", 11)
     titleRow:AddChild(title)
 
-    local filterRow = AceGUI:Create("SimpleGroup")
-    filterRow:SetLayout("Flow")
-    filterRow:SetFullWidth(true)
-    LockContainerHeight(filterRow, 52)
-    root:AddChild(filterRow)
-
-    filterRow:AddChild(CreateSpacer(38))
-
+    local filterRow = Group(root, 40, "Table")
+    filterRow:SetUserData("table", { columns = { { weight = 2 }, { weight = 1 } }, spaceH = 14 })
+    filterRow:SetLayout("Table")
+    local function StyleFilterLabel(widget)
+        local font, size, flags = widget.label:GetFont()
+        local color = { widget.label:GetTextColor() }
+        local height = widget.label:GetHeight()
+        local yellow = NORMAL_FONT_COLOR or TextStyles.Get("sectionHeader")
+        widget.label:SetFont(font, 13, flags)
+        widget.label:SetTextColor(yellow.r, yellow.g, yellow.b, 1)
+        widget.label:SetHeight(14)
+        return function()
+            widget.label:SetFont(font, size, flags)
+            widget.label:SetTextColor(unpack(color))
+            widget.label:SetHeight(height)
+        end
+    end
     local searchBox = AceGUI:Create("EditBox")
     searchBox:SetLabel(T("MEDIA_LIBRARY_SEARCH", "Search"))
     searchBox:DisableButton(true)
-    searchBox:SetWidth(388)
-    if FormWidgets.StyleEditBox then
-        FormWidgets.StyleEditBox(searchBox, "editor_inset")
-    end
+    searchBox:SetFullWidth(true)
+    FormWidgets.StyleEditBox(searchBox, "editor_inset")
+    local inputFill = searchBox.frame._fpMediaSearchFill or searchBox.editbox:CreateTexture(nil, "BACKGROUND")
+    searchBox.frame._fpMediaSearchFill = inputFill
+    inputFill:SetAllPoints(searchBox.editbox)
+    local fieldStyle = FormWidgets.ResolveFieldStyle("editor_inset")
+    inputFill:SetColorTexture(unpack(fieldStyle.background))
+    inputFill:Show()
+    local restoreSearchLabel = StyleFilterLabel(searchBox)
+    local inputFont, inputSize, inputFlags = searchBox.editbox:GetFont()
+    searchBox.editbox:SetFont(inputFont, 14, inputFlags)
+    -- Existing top/bottom anchors leave 22 input units; 3+3 text insets leave 16.
+    searchBox:SetHeight(40)
+    searchBox:SetCallback("OnRelease", function()
+        inputFill:Hide()
+        restoreSearchLabel()
+        searchBox.editbox:SetFont(inputFont, inputSize, inputFlags)
+    end)
     filterRow:AddChild(searchBox)
-
-    filterRow:AddChild(CreateSpacer(14))
 
     local sourceDropdown = AceGUI:Create("Dropdown")
     local sourceValues, sourceOrder = BuildSourceDropdown()
     sourceDropdown:SetLabel(T("MEDIA_LIBRARY_SOURCE", "Source"))
     sourceDropdown:SetList(sourceValues, sourceOrder)
     sourceDropdown:SetValue("all")
-    sourceDropdown:SetWidth(220)
-    if FormWidgets.StyleDropdown then
-        FormWidgets.StyleDropdown(sourceDropdown, "editor_inset")
-    end
+    sourceDropdown:SetFullWidth(true)
+    FormWidgets.StyleDropdown(sourceDropdown, "editor_inset")
+    FormWidgets.BindNativeDropdown(sourceDropdown, { order = sourceOrder })
+    local restoreSourceLabel = StyleFilterLabel(sourceDropdown)
+    sourceDropdown:SetCallback("OnRelease", restoreSourceLabel)
     filterRow:AddChild(sourceDropdown)
+    Gap(root, 12)
 
+    local listGroup = Group(root, 272)
+    FormSectionSurfaceRenderer.ApplySectionPadding(listGroup, { left = 12, right = 12, top = 12, bottom = 14 })
+    ApplyCentralSectionChrome(listGroup)
+    local listTitle = CreateLabel("", "sectionHeader", 14)
+    Heading(listTitle)
+    local headingRow = Group(listGroup, 20)
+    headingRow:AddChild(listTitle)
     local itemScroll = AceGUI:Create("ScrollFrame")
     itemScroll:SetLayout("Flow")
     itemScroll:SetFullWidth(true)
-    itemScroll:SetHeight(270)
-    root:AddChild(itemScroll)
-    ApplyCentralSectionChrome(itemScroll)
+    itemScroll:SetHeight(226)
+    listGroup:AddChild(itemScroll)
 
-    local Preview = ns.GUI
-        and ns.GUI.Editor
-        and ns.GUI.Editor.MediaLibrary
-        and ns.GUI.Editor.MediaLibrary.MediaLibraryPreview
-    local preview = Preview and Preview.Create and Preview.Create(root) or nil
-    ApplyCentralSectionChrome(preview)
-
-    local metadata = AceGUI:Create("SimpleGroup")
-    metadata:SetLayout("List")
-    metadata:SetFullWidth(true)
-    -- Root Flow: 24 + 52 + 270 + 112 + 86 + 38 + 6*3 = 600 <= 603.
-    LockContainerHeight(metadata, 86)
-    root:AddChild(metadata)
-    ApplyCentralSectionChrome(metadata)
-
-    -- Identity/action context first, availability second, diagnostics last.
-    -- Name is the selected identity; provider shares Source. Current/legacy/
-    -- missing/fallback are one status line, not competing boolean fields.
-    local labels = {
-        selectedLabel = CreateLabel("", "highlight", 11),
-        selectionHelp = CreateLabel("", "help", 10),
-        sourceLabel = CreateLabel("", "label", 10),
-        statusLabel = CreateLabel("", "help", 10),
-        valueLabel = CreateLabel("", "help", 9),
-        resolvedAssetLabel = CreateLabel("", "help", 9),
-    }
-    for _, key in ipairs({ "selectedLabel", "selectionHelp", "sourceLabel", "statusLabel", "valueLabel", "resolvedAssetLabel" }) do
-        metadata:AddChild(labels[key])
+    Gap(root, 32) -- Expanded native hosts extend 15 above/below; 2 units remain between them.
+    local previewGroup = Group(root, 192)
+    FormSectionSurfaceRenderer.ApplySectionPadding(previewGroup, { left = 12, right = 12, top = 12, bottom = 14 })
+    ApplyCentralSectionChrome(previewGroup)
+    local Preview = ns.GUI.Editor.MediaLibrary.MediaLibraryPreview
+    local preview = Preview and Preview.Create and Preview.Create(previewGroup) or nil
+    if preview and preview.title then
+        local font, size, flags = preview.title:GetFont()
+        local color = { preview.title:GetTextColor() }
+        local headingColor = NORMAL_FONT_COLOR or TextStyles.Get("sectionHeader")
+        preview.title:SetFont(font, 14, flags)
+        preview.title:SetTextColor(headingColor.r, headingColor.g, headingColor.b, 1)
+        preview:SetCallback("OnRelease", function(widget)
+            widget.title:SetFont(font, size, flags)
+            widget.title:SetTextColor(unpack(color))
+        end)
     end
 
-    local actions = AceGUI:Create("SimpleGroup")
-    actions:SetLayout("Flow")
-    actions:SetFullWidth(true)
-    LockContainerHeight(actions, 38)
-    root:AddChild(actions)
-    FormWidgets.ApplySurfacePresentation(actions, "Footer", {
-        prefix = CHROME_PREFIX,
-        actionBar = true,
-    })
+    local metadata = Group(previewGroup, 54, "Table")
+    metadata:SetUserData("table", { columns = { { weight = 1 }, { weight = 1 } }, spaceH = 12, spaceV = 3 })
+    metadata:SetLayout("Table")
+    local labels = {
+        selectedLabel = CreateLabel("", "highlight", 13),
+        selectionHelp = CreateLabel("", "help", 10),
+        sourceLabel = CreateLabel("", "label", 12),
+        statusLabel = CreateLabel("", "label", 12),
+        valueLabel = CreateLabel("", "help", 10),
+        resolvedAssetLabel = CreateLabel("", "help", 10),
+    }
+    labels.selectedLabel.label:SetMaxLines(1) -- same bounded identity role as Texts Manager
+    labels.selectedLabel:SetUserData("cell", { colspan = 2 })
+    labels.selectionHelp:SetUserData("cell", { colspan = 2 })
+    for _, key in ipairs({ "selectedLabel", "sourceLabel", "statusLabel", "selectionHelp", "valueLabel", "resolvedAssetLabel" }) do
+        local label = labels[key]
+        label.label:SetWordWrap(false)
+        label.frame:EnableMouse(true)
+        label:SetCallback("OnRelease", function(widget)
+            widget.frame.__fpInspectorTooltip = nil
+            widget.frame:EnableMouse(false)
+            widget.label:SetWordWrap(true)
+            widget.label:SetMaxLines(0)
+        end)
+        metadata:AddChild(label)
+        if key == "valueLabel" or key == "resolvedAssetLabel" then label.frame:Hide() end
+    end
 
-    actions:AddChild(CreateSpacer(nil, 5))
+    Gap(root, 16) -- Native preview border ends before the footer begins.
+    local actions = Group(root, 25, "Table")
+    actions:SetUserData("table", { columns = { { weight = 1, alignH = "left" }, { weight = 1, alignH = "right" } } })
+    actions:SetLayout("Table")
     local applyButton = CreateButton(T("MEDIA_LIBRARY_APPLY", "Apply"), "primary_action", 105)
     actions:AddChild(applyButton)
-    actions:AddChild(CreateSpacer(450, 1))
-
     local cancelButton = CreateButton(T("MEDIA_LIBRARY_CANCEL", "Cancel"), "utility", 105)
     actions:AddChild(cancelButton)
 
     context.window = window
     context.widgets = {
         root = root,
+        listGroup = listGroup,
+        listTitle = listTitle,
+        previewGroup = previewGroup,
+        filterRow = filterRow,
+        actions = actions,
         title = title,
         searchBox = searchBox,
         sourceDropdown = sourceDropdown,

@@ -544,6 +544,23 @@ function FormWidgets.RestoreDefaultWindowChrome(window)
             window.titletext:Show()
         end
     end
+    local direct = window.GetUserData and window:GetUserData("fpDirectEditModeChrome")
+    if direct then
+        local title, drag = window.titletext, window.title
+        title:SetParent(direct.parent)
+        title:SetFont(unpack(direct.font))
+        title:SetTextColor(unpack(direct.color))
+        title:SetJustifyH(direct.justify)
+        title:SetDrawLayer(unpack(direct.layer))
+        if direct.shadowOffset then title:SetShadowOffset(unpack(direct.shadowOffset)) end
+        if direct.shadowColor then title:SetShadowColor(unpack(direct.shadowColor)) end
+        title:ClearAllPoints()
+        for _, point in ipairs(direct.titlePoints) do title:SetPoint(unpack(point)) end
+        drag:ClearAllPoints()
+        drag:SetSize(direct.dragWidth, direct.dragHeight)
+        for _, point in ipairs(direct.dragPoints) do drag:SetPoint(unpack(point)) end
+        window:SetUserData("fpDirectEditModeChrome", nil)
+    end
 end
 
 -- Shared border-only host. Modern chrome retains its title/portrait behavior;
@@ -943,6 +960,41 @@ end
 function FormWidgets.ApplyModernWindowChrome(window, options)
     local frame = window and window.frame
     if not frame then
+        return
+    end
+
+    if options and options.windowChrome == "editmode" then
+        local title, drag = window.titletext, window.title
+        local snapshot = window:GetUserData("fpDirectEditModeChrome")
+        if not snapshot then
+            snapshot = {
+                font = {title:GetFont()}, color = {title:GetTextColor()},
+                justify = title:GetJustifyH(), layer = {title:GetDrawLayer()},
+                parent = title:GetParent(),
+                shadowOffset = title.GetShadowOffset and {title:GetShadowOffset()},
+                shadowColor = title.GetShadowColor and {title:GetShadowColor()},
+                titlePoints = {}, dragPoints = {},
+                dragWidth = drag:GetWidth(), dragHeight = drag:GetHeight(),
+            }
+            for index = 1, title:GetNumPoints() do snapshot.titlePoints[index] = {title:GetPoint(index)} end
+            for index = 1, drag:GetNumPoints() do snapshot.dragPoints[index] = {drag:GetPoint(index)} end
+        end
+        -- Resolve neutral title anchors before applying the existing local offset;
+        -- a preceding portrait/tool presentation must not become the new basis.
+        FormWidgets.RestoreDefaultWindowChrome(window)
+        local titlePoints = {}
+        for index = 1, title:GetNumPoints() do titlePoints[index] = {title:GetPoint(index)} end
+        ApplyCompactEditModeChrome(window, options, titlePoints)
+        window:SetUserData("fpDirectEditModeChrome", snapshot)
+        if not window:GetUserData("fpDirectEditModeRelease") then
+            window:SetUserData("fpDirectEditModeRelease", true)
+            local previousRelease = window.events and window.events.OnRelease
+            window:SetCallback("OnRelease", function(owner, event)
+                FormWidgets.RestoreDefaultWindowChrome(owner)
+                owner:SetUserData("fpDirectEditModeRelease", nil)
+                if previousRelease then previousRelease(owner, event) end
+            end)
+        end
         return
     end
 
