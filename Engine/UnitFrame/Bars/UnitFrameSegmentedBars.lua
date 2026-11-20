@@ -86,7 +86,7 @@ end
 local function HasComboPoints(snapshot, info, frame)
     local context = snapshot and snapshot.context
     local class = SnapshotClass(snapshot, frame)
-    -- The Druid Energy/Shred gate runs in the sole live provider before this
+    -- The Druid Energy gate runs in the sole live provider before this
     -- snapshot is published; it is not re-read by this visual consumer.
     if not info or not context or snapshot.source ~= "live" or snapshot.sourceInfo ~= info
         or context.unit ~= "player" or context.config ~= frame.config

@@ -45,7 +45,6 @@ local POWER_TOKEN_SOUL_SHARDS = "SOUL_SHARDS"
 local SPELL_DARK_HEART = 1225789
 local SPELL_MAELSTROM_WEAPON = 344179
 local SPELL_MAELSTROM_WEAPON_TALENT = 187880
-local SPELL_SHRED = 5221
 local SPELL_VOID_METAMORPHOSIS = 1217607
 
 local PREVIEW_INFO_BY_CLASS = {
@@ -276,7 +275,7 @@ local function GetLiveClassPowerInfo()
     elseif classToken == "DEMONHUNTER" then
         return GetDemonHunterSoulFragmentsInfo()
     elseif classToken == "DRUID" then
-        if UnitPowerType and UnitPowerType("player") == POWER_ID_ENERGY and IsKnownSpell(SPELL_SHRED) then
+        if UnitPowerType and UnitPowerType("player") == POWER_ID_ENERGY then
             return GetNumericPowerInfo(POWER_ID_COMBO_POINTS, POWER_TOKEN_COMBO_POINTS)
         end
         return nil
