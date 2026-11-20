@@ -21,11 +21,17 @@ characters.
 <a id="release-303"></a>
 <a id="release-304"></a>
 <a id="release-305"></a>
+<a id="release-306"></a>
 
-## Release 3.0.5
+## Release 3.0.6
 
-Version 3.0.5 is being prepared as a release candidate for the completed editor
-UI and localization update. It extends consistent Edit Mode styling to the text
+Version 3.0.6 fixes Druid combo points not appearing in Cat Form when Shred is
+unavailable, including some non-Feral specializations. The existing Energy and
+combo-point maximum checks remain in place. The fix has been natively checked
+on Retail/Midnight and WoW Forever.
+
+Version 3.0.5 introduced the completed editor UI and localization update. It
+extended consistent Edit Mode styling to the text
 tools, Tag and Media Libraries, layout dialogs, and confirmation windows.
 Customize now has fixed category navigation, native Blizzard group boxes, and
 more readable controls; media selection still opens the existing Media Library.
@@ -37,7 +43,7 @@ layout activation/import-conflict messages have also been completed.
 The UI and localization changes have been natively checked on Retail/Midnight
 and WoW Forever. These checks do not guarantee every function or client
 configuration. Earlier improvements remain available; see the
-[changelog](CHANGELOG.md) for the preserved 3.0.4 and earlier release notes.
+[changelog](CHANGELOG.md) for the preserved 3.0.5, 3.0.4 and earlier release notes.
 
 Before updating, close the game and make an external backup of your Focal Point
 SavedVariables. A native upgrade test using a real 2.x backup retained existing

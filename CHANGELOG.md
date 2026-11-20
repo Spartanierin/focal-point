@@ -10,6 +10,14 @@ This changelog uses the following categories:
 * `Fixed` for bug fixes
 * `Removed` for removed functionality
 
+## 3.0.6
+
+### Fixed
+
+* Fixed Druid combo points not appearing in Cat Form when Shred is unavailable, including some non-Feral specializations.
+
+Thanks to Athalus for reporting the issue and suggesting the fix!
+
 ## 3.0.5
 
 ### Improved
